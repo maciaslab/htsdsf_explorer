@@ -103,6 +103,8 @@ cache_path=cache/
 persistent_path=persistent/
 plateinfo_path=plateinfo/
 ```
+# Citing this software
 
+A paper describing this software is in process of being written. 
 
 
