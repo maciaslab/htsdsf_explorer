@@ -10,16 +10,13 @@ settings.ini contains the program settings.
 
 Default file:
 
-`[Default]
-
+```
+[Default]
 data_path=data/
-
 cache_path=cache/
-
 persistent_path=persistent/
-
-plateinfo_path=plateinfo/`
-
+plateinfo_path=plateinfo/
+```
 
 # Installation
 
