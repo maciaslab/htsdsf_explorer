@@ -107,4 +107,18 @@ plateinfo_path=plateinfo/
 
 A paper describing this software is in process of being written. 
 
+# License
+This piece of sotware is under the GPL v3 license (https://www.gnu.org/licenses/gpl-3.0.en.html). Some parts of it are created by third parties and are under a MIT license. These parts have been unmodified and the files contain the headers corresponding to the original license and the original authors are credited below:
+
+### Bootstrap
+Bootstrap is released under the MIT license and is copyright 2018 Twitter (https://getbootstrap.com/)
+
+### Chart.js
+Chart.js is available under the MIT license. ( https://github.com/chartjs/Chart.js )
+
+### DataTables
+Bootstrap is released under the MIT license. (https://github.com/DataTables/DataTables)
+
+### jQuery
+Bootstrap is released under the MIT license. (https://jquery.org/)
 
