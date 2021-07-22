@@ -74,8 +74,17 @@ Supported file types:
 
 ### xlsx:
 * Biorad
-### gdsf
+### gdsf:
 * Generic dsf file
+A generic dsf (.gdsf) file format has been defined to allow the use of data acquired in different instruments. This format is a simple text file, with three columns separated by spaces containing in order the well, temperature and fluorescence.
+``` 
+A1  	20.22   2.31
+A1  	20.44   2.29
+A1  	20.68   2.27
+A1  	20.99   2.26
+A1  	21.28   2.23
+...
+```
 
 plateinfo:
 In HTS experiemnts, the sample plate templates are reused for different proteins.
