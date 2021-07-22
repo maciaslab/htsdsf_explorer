@@ -5,18 +5,9 @@ Used to find binders to proteins which alter Tm.
 Objectives: A program that is agile and allows to analyze a very high number of curves in a very short time.
 The program finds wells for wwhich dTm with respect the reference is higher than a given threshold.
 Then allows the user to validate the Tm with the minimum number of clicks.
+The program has been tested in Mac OSX and Windows, but any modern OS with python3 and a web browser should run it.
 
-settings.ini contains the program settings.
 
-Default file:
-
-```
-[Default]
-data_path=data/
-cache_path=cache/
-persistent_path=persistent/
-plateinfo_path=plateinfo/
-```
 
 # Installation
 
@@ -86,7 +77,8 @@ A1  	21.28   2.23
 ...
 ```
 
-plateinfo:
+# Plateinfo 
+The plateinfo folder contains the information that correlates the wells in the plates with the ligands in them.
 In HTS experiemnts, the sample plate templates are reused for different proteins.
 You can (optionally) define these templates, and then assign a template to your plates. 
 Format: 5 columns, tab separated. .txt extension. One header line.
@@ -99,6 +91,18 @@ Column 5: Well
 You can have as many .txt files as needed, program will read all of them.
 After matching a plate with a Plate tempalte name, the well will be used to find the molecule in the well (Molecule id and Smiles for Molecule) when generating a report.
 
+# Settings
+settings.ini contains the program settings.
+
+Default file:
+
+```
+[Default]
+data_path=data/
+cache_path=cache/
+persistent_path=persistent/
+plateinfo_path=plateinfo/
+```
 
 
 
