@@ -19,10 +19,10 @@ Program will start a webserver and open browserpointing at http://localhost:5555
 1. Download python 3 64-bits from https://www.python.org/downloads/ and install it, checking the "Add to path"· option.
 
 2. RUN:
-python -m pip install scipy pandas xlsxwriter openpyxl matplotlib python-docx 
+`python -m pip install scipy pandas xlsxwriter openpyxl matplotlib python-docx `
 
-3. RUN
-python server.py
+3. RUN:
+`python server.py`
 
 
 ## Requisites 
@@ -32,7 +32,7 @@ Python 3
 scipy pandas xlsxwriter openpyxl numpy matplotlib python-docx
 
 ### To install modules:
-python3-m pip install scipy pandas xlsxwriter openpyxl numpy matplotlib python-docx
+`python3-m pip install scipy pandas xlsxwriter openpyxl numpy matplotlib python-docx`
 
 # Use
 Program in python, interface through web server.
