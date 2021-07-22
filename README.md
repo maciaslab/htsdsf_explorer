@@ -1,5 +1,4 @@
-
-#HTSDSF Explorer
+# HTSDSF Explorer
 
 DSF data explorer focused in HTS.
 Used to find binders to proteins which alter Tm.
@@ -17,13 +16,13 @@ cache_path=cache/
 persistent_path=persistent/
 plateinfo_path=plateinfo/
 
-#Installation
+# Installation
 
 Just download the package and run:
 python server.py
 Program will start a webserver and open browserpointing at http://localhost:5555/index.html
 
-###Windows Installation Instructions
+## Windows Installation Instructions
 1. Download python 3 64-bits from https://www.python.org/downloads/ and install it, checking the "Add to path"· option.
 
 2. RUN:
@@ -33,16 +32,16 @@ python -m pip install scipy pandas xlsxwriter openpyxl matplotlib python-docx
 python server.py
 
 
-##Requisites 
+## Requisites 
 Python 3
 
-###Python modules:
+### Python modules:
 scipy pandas xlsxwriter openpyxl numpy matplotlib python-docx
 
-###To install modules:
+### To install modules:
 python3-m pip install scipy pandas xlsxwriter openpyxl numpy matplotlib python-docx
 
-#Use
+# Use
 Program in python, interface through web server.
 
 Two different modules:
