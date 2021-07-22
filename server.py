@@ -793,7 +793,8 @@ def create_report(post_data):
                     if (good_data):    
                         temps_refs.append(float(b[well]["tm"]))
 
-            #print(temps_refs)
+            temps_refs=[i for i in temps_refs if i> 1]
+            print(temps_refs)
             tm_ave=numpy.average(temps_refs)
             tm_std=numpy.std(temps_refs)
         #print(tm_ave,tm_std)
