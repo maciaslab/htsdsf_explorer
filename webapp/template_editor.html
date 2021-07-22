@@ -1,0 +1,1767 @@
+<html>
+
+<head>
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="DataTables/datatables.min.css" />
+    <!--link rel="stylesheet" type="text/css" href="DataTables/DataTables-1.10.24/css/dataTables.bootstrap4.css"/-->
+    <link rel="stylesheet" type="text/css" href="DataTables/bs5/dataTables.bootstrap5.min.css" />
+
+    <!--
+        02/06/2021  - Fixed highlight gone when changing effect dropdown in datatable.
+                    - Allowed no active references.
+                    - Added manual reference tm setting.
+                    - Darker colors for graphs
+                    - Added Applied Biosystems formats: 96 and 396 wells.
+        03/06/2021  - Better zoom
+                    - Choose more relevant tm for curves where we have more than 1 peak on derivative.
+                    - Added "format" subheader to plate
+        04/06/2021  - Now to select multiple wells you need to press shift
+                    - Show all reference wells. Can be turned off.
+                    - Report name is now based on selected filename, or "selection.xlsx" if more than one plate is selected.
+        07/06/2021
+                    -Reference cells marked as bad data now are skipped.
+                    -DONE: Implement this on report (server.py) 
+                    -DONE?:implement single cells in reference array (and not only Row or Col) in server.py
+                    -reference_rc now also can contain cells in preparation for individual reference cells with ALT. (line 988)
+                    -TO DO: ^^
+                    
+                    -DONE: Auto cache in background to speed up first read (server.py)
+                    -TO DO: One line instructions of keys (SHFT, ALT) under well table.
+                    -DONE: Add abs(dTm) to report, for easier sorting
+
+
+
+    -->
+
+    <!--link rel="stylesheet" href="css/bootstrap-dark.min.css" rel="stylesheet"-->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        .noshow {
+            display: none;
+        }
+
+        .conclabel {
+            width: 100px;
+            float: left;
+
+        }
+
+        #plateslist {
+            user-select: none;
+        }
+
+        .scrollable-dd {
+            height: auto;
+            max-height: 200px;
+            overflow-x: hidden;
+        }
+
+        .badge {
+            float: right;
+        }
+
+        .navbar-brand {
+            padding-left: 50px;
+        }
+
+        .noshow {
+            display: none;
+        }
+
+        #welltable tbody {
+            border-right: 3px solid grey;
+            z-index: 200;
+        }
+
+        .welltitle {
+            float: left;
+        }
+
+        .closebutton {
+            float: right;
+            padding: 2px;
+            font-size: .5rem;
+            font-weight: bold;
+        }
+
+        #myChart {
+            background-color: white;
+            /* Equal to scaleX(0.7) scaleY(0.7) */
+
+        }
+
+        #molecule-selector-table {
+            border: 4px solid black;
+        }
+
+        #molecule-selector-table td {
+            border: 4px solid black;
+            padding: 0px;
+            height: 40px;
+            width: 40px;
+            text-align: center;
+        }
+
+        .cellA {
+            background: chartreuse;
+        }
+
+        .cellB {
+            background: tan;
+        }
+
+        .cellC {
+            background: coral;
+        }
+
+        .cellD {
+            background: plum;
+        }
+
+        .cellE {
+            background: turquoise;
+        }
+
+        .cellF {
+            background: khaki;
+        }
+
+        .cellG {
+            background: dodgerblue;
+        }
+
+        .cellH {
+            background: purple;
+        }
+
+        .cellI {
+            background: red;
+        }
+
+        .cellJ {
+            background: darkslategray;
+        }
+
+        .cellK {
+            background: cyan;
+        }
+
+        .cellL {
+            background: limegreen;
+        }
+
+        .cellM {
+            background: orchid;
+        }
+
+        .cellN {
+            background: brown;
+        }
+
+        .cellO {
+            background: darkmagenta;
+        }
+
+        .cellP {
+            background: darkgreen;
+        }
+
+        .cellQ {
+            background: gold;
+        }
+
+        .cellR {
+            background: navy;
+        }
+
+        .cellS {
+            background: salmon;
+        }
+
+        .cellT {
+            background: slategray;
+        }
+
+        .cellU {
+            background: firebrick;
+        }
+
+        .cellV {
+            background: purple;
+        }
+
+        .cellW {
+            background: olive;
+        }
+
+        .cellX {
+            background: sienna;
+        }
+
+        .cellY {
+            background: deeppink;
+        }
+
+        .cellZ {
+            background: skyblue;
+        }
+
+        .cellNone {
+            background: rgba(255, 255, 255, 0);
+        }
+
+
+        .circle {
+            border-radius: 100%;
+            /*width: 2px;
+        height: 2px;*/
+            padding: 4px;
+            background: #fff;
+            border: 2px solid #000;
+
+            text-align: center;
+            /*font: 32px Arial, sans-serif;*/
+        }
+
+        #myChart2 {
+            background-color: white;
+            /* Equal to scaleX(0.7) scaleY(0.7) */
+
+        }
+
+        .hiddentick {
+            visibility: hidden;
+        }
+
+        .mini {
+
+            transform: scale(0.8);
+            padding: 0px;
+            margin-top: -6%;
+            margin-bottom: -10%;
+            /* Equal to scaleX(0.7) scaleY(0.7) */
+
+        }
+
+        #welltable {
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #welltable tr:hover {
+            /*border:3px solid grey;*/
+            box-shadow: inset 0px 0px 0px 2px grey;
+
+        }
+
+
+
+
+
+        #welltable td,
+        #welltable th {
+            font-weight: bold;
+            position: relative;
+            text-align: center;
+
+            z-index: 100 !important;
+        }
+
+        .sorting ::before {
+            color: red !important;
+            font-size: smaller !important;
+        }
+
+        #welltable td {
+            /*color: rgba(0, 0, 0, 0)*/
+        }
+
+        /*
+        #welltable td:hover::after,
+        #welltable th:hover::after {
+            content: "";
+            position: absolute;
+            
+            box-shadow: inset 0px 0px 0px 3px grey;
+           
+
+            left: 0;
+            top: -5000px;
+            height: 10000px;
+            width: 100%;
+            z-index: 100;
+        }*/
+        
+
+        #welltable .reference {
+            color: green;
+
+        }
+
+        #welltable tbody tr th {
+            border-top: 4px solid rgba(0, 0, 0, 0);
+
+
+        }
+
+        .dataTable thead tr th::before {
+            /*left: 0px;*/
+            right: 8px !important;
+            font-size: smaller !important;
+
+        }
+
+        .dataTable thead tr th::after {
+            right: -1px !important;
+            /*color:red !important;*/
+            font-size: smaller !important;
+
+        }
+
+        #datatable tr {
+            border-collapse: separate;
+        }
+
+        #datatable td {
+            text-align: center;
+            vertical-align: middle;
+            border-collapse: collapse;
+        }
+
+        #datatable {
+            font-size: 80%;
+        }
+
+        #datatable .td-stabilizing {
+            background-color: #D5F5E3;
+        }
+
+        #datatable .td-destabilizing {
+            background-color: #FDEBD0;
+        }
+
+        #datatable .td-uncertain {
+            background-color: #fdd0f5;
+        }
+
+        .td-reference {
+            background-color: lightgrey;
+        }
+
+        .td-stabilizing {
+            background-color: chartreuse;
+        }
+
+        .td-destabilizing {
+            background-color: orange;
+        }
+
+        .td-uncertain {
+            background-color: plum;
+        }
+
+        .td-warning {
+
+            background-image: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg"><rect width="0.2" x="0" y="-0.25" height="1.5" fill="rgba(255, 0, 0, .5)" transform="rotate(-45,0.5,0.5)"/><rect x="0.4" y="-0.25" width="0.2" height="1.5" fill="rgba(255, 0, 0, .5)" transform="rotate(-45,0.5,0.5)"/><rect x="0.8" y="-0.25" width="0.2" height="1.5" fill="rgba(255, 0, 0, .5)" transform="rotate(-45,0.5,0.5)"/></svg>');
+            background-repeat: no-repeat;
+            background-size: 120%;
+            /*background-color:red;*/
+        }
+
+        #molecule-selector-table .td-sel {
+            box-shadow: inset 0px -0.5px 0px 20px red;
+            /*border: 2px solid green;
+            border-bottom: 2px solid green !important;
+            border-collapse: collapse;*/
+
+        }
+
+        #welltable .td-sel {
+            box-shadow: inset 0px -0.5px 0px 3px green;
+            /*border: 2px solid green;
+            border-bottom: 2px solid green !important;
+            border-collapse: collapse;*/
+
+        }
+
+        #datatable .td-highlight {
+            box-shadow: inset 0px -0.5px 0px 3px cornflowerblue;
+            /*border: 20px solid red !important;
+            border-bottom: 8px solid red !important;*/
+            /*border-left: 8px solid cornflowerblue !important;*/
+            z-index: -1000;
+            border-collapse: separate;
+
+        }
+
+        #welltable .td-highlight {
+            box-shadow: inset 0px -0.5px 0px 3px cornflowerblue;
+            /*border: 2px solid cornflowerblue;
+            border-bottom: 2px solid cornflowerblue !important;
+            z-index:-1000;
+            border-collapse: collapse;*/
+
+
+        }
+
+        #welltable .td-validated {
+            color: darkgreen;
+        }
+
+        #welltable td {
+            border: 1px dotted grey;
+            border-collapse: collapse;
+        }
+        #diltable td{
+            white-space: nowrap;
+            }
+            .th2{
+            padding-top: 20px !important;
+            }
+        
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="#">Template Editor</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav mr-auto">
+                <li class="nav-item m-1">
+                    <button type="button" class="btn btn-primary" id="helpbutton" data-bs-toggle="modal"
+                        data-bs-target="#helpModal">Help</button>
+                </li>
+                <li class="nav-item m-1">
+                    <button type="button" class="btn btn-primary" id="dscbutton" data-bs-toggle="modal"
+                        data-bs-target="#dscModal">Dilution series calculator</button>
+                </li>
+
+            </ul>
+
+        </div>
+    </nav>
+
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-4">
+                <h6>
+                    <p id="filenamep"></p>
+                </h6>
+                <small id="formatp" class="small"></small>
+
+                <div>
+                    <table id="welltable" class="font-monospace ">
+                        <thead>
+                            <th scope="col"> </th>
+                            <th scope="col">01</th>
+                            <th scope="col">02</th>
+                            <th scope="col">03</th>
+                            <th scope="col">04</th>
+                            <th scope="col">05</th>
+                            <th scope="col">06</th>
+                            <th scope="col">07</th>
+                            <th scope="col">08</th>
+                            <th scope="col">09</th>
+                            <th scope="col">10</th>
+                            <th scope="col">11</th>
+                            <th scope="col">12</th>
+                            <th scope="col">13</th>
+                            <th scope="col">14</th>
+                            <th scope="col">15</th>
+                            <th scope="col">16</th>
+                            <th scope="col">17</th>
+                            <th scope="col">18</th>
+                            <th scope="col">19</th>
+                            <th scope="col">20</th>
+                            <th scope="col">21</th>
+                            <th scope="col">22</th>
+                            <th scope="col">23</th>
+                            <th scope="col">24</th>
+                        </thead>
+                        <tbody>
+
+                            <tr>
+                                <th scope="row">A</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+
+                            </tr>
+                            <tr>
+                                <th scope="row">B</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">C</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">D</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">E</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">F</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">G</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">H</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">I</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">J</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">K</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">L</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">M</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">N</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">O</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">P</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+                    <br>
+
+                </div>
+
+                <p id="well-p">&nbsp;</p>
+                Select molecule:
+                <table id="molecule-selector-table" class="font-monospace">
+                    <tbody>
+                        <tr>
+                            <td class="cellA"><span class="circle">A</span></td>
+                            <td><span class="circle">B</span></td>
+                            <td><span class="circle">C</span></td>
+                            <td><span class="circle">D</span></td>
+                            <td><span class="circle">E</span></td>
+                            <td><span class="circle">F</span></td>
+                            <td><span class="circle">G</span></td>
+                            <td><span class="circle">H</span></td>
+                            <td><span class="circle">I</span></td>
+                        </tr>
+                        <tr>
+                            <td><span class="circle">J</span></td>
+                            <td><span class="circle">K</span></td>
+                            <td><span class="circle">L</span></td>
+                            <td><span class="circle">M</span></td>
+                            <td><span class="circle">N</span></td>
+                            <td><span class="circle">O</span></td>
+                            <td><span class="circle">P</span></td>
+                            <td><span class="circle">Q</span></td>
+                            <td><span class="circle">R</span></td>
+                        </tr>
+                        <tr>
+
+                            <td><span class="circle">S</span></td>
+                            <td><span class="circle">T</span></td>
+                            <td><span class="circle">U</span></td>
+                            <td><span class="circle">V</span></td>
+                            <td><span class="circle">W</span></td>
+                            <td><span class="circle">X</span></td>
+                            <td><span class="circle">Y</span></td>
+                            <td><span class="circle">Z</span></td>
+                            <td><span class="circle">&nbsp;</span></td>
+                        </tr>
+                    </tbody>
+
+                </table>
+                Molecule Selected:<span id="molselected">None</span>
+                <div id="miniinstructions" class="small">
+                    <small>Click:Select molecule and click/drag wells to set/unset that molecule</small>
+                </div>
+                <div>
+                    <br />
+                </div>
+                <div id="saveload" class="row">
+                    <div id="load" class="col-5 card m-1">
+                        LOAD:
+                        <select class="form-select form-select-sm" id="load_list">
+
+                        </select>
+                        <button class="btn btn-sm btn-primary m-1" id="load_button">LOAD</button>
+                    </div>
+                    <div id="save" class="col-5 card m-1">
+                        SAVE:
+                        <input id="save_input">
+                        <button class="btn btn-sm btn-primary m-1" id="save_button">SAVE</button>
+                    </div>
+
+                </div>
+
+            </div>
+            <div class="col-8 mini conctable">
+                Concentrations:
+                <div id="concentrationsdiv">
+
+                </div>
+                <div>
+                    <br>
+                </div>
+                <div class="row">
+                    <label class="col-4 col-form-label" for="custom-mult">Custom divisor: </label>
+                    <div class="col-4"><input class="form-control form-control-sm" type="text" id="custom-mult"></div>
+                    <div class="col-4"><button class="btn btn-sm btn-primary" id="clearbutton">Clear
+                            concentrations</button></div>
+                </div>
+
+
+            </div>
+        </div>
+
+    </div>
+
+
+
+
+
+
+
+
+    <div class="modal fade " id="helpModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">Help</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        DSF explorer by Pau Martin @ maciaslab (pau.martin@irbbarcelona.org)
+                    </p>
+                    <p>
+                        This is a plate editor for Kd calculations
+                        <br>
+                        (TO DO)
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="modal fade " id="dscModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">Dilution Series calculator</h5>
+
+                </div>
+                <div class="modal-body">
+                    <p>
+
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" placeholder="Final Volume at each well" id="dscv"
+                                aria-describedby="basic-addon2">
+                            <span class="input-group-text" id="basic-addon2">&mu;L</span>
+                        </div>
+
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" placeholder="Dilution factor" id="dscdf"
+                                aria-describedby="basic-addon2">
+                            <button class="btn btn-outline-primary" type="button" id="dsc10">1:10</button>
+                            <button class="btn btn-outline-primary" type="button" id="dsc2">1:2</button>
+                            <button class="btn btn-outline-primary" type="button" id="dsc14">1:1.4</button>
+                        </div>
+                        <div class="form-label">Optional:</div>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" placeholder="Starting concentration" id="dscconc"
+                                aria-describedby="basic-addon2">
+                            <span class="input-group-text btn-primary toggleunit" id="millimolar">mM</span>
+                            <span class="input-group-text btn-light toggleunit" id="micromolar">&mu;M</span>
+                        </div>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" placeholder="Number of tubes" id="dscnumbtub"
+                                aria-describedby="basic-addon2">
+                            <button class="btn btn-outline-primary tubebut" type="button">2</button>
+                            <button class="btn btn-outline-primary tubebut" type="button">3</button>
+                            <button class="btn btn-outline-primary tubebut" type="button">4</button>
+                            <button class="btn btn-outline-primary tubebut" type="button">5</button>
+                            <button class="btn btn-outline-primary tubebut" type="button">6</button>
+                            <button class="btn btn-outline-primary tubebut" type="button">7</button>
+                            <button class="btn btn-outline-primary tubebut" type="button">8</button>
+                            <button class="btn btn-outline-primary tubebut" type="button">9</button>
+                            <button class="btn btn-outline-primary tubebut" type="button">10</button>
+                            <button class="btn btn-outline-primary tubebut" type="button">12</button>
+                            <button class="btn btn-outline-primary tubebut" type="button">16</button>
+                            <button class="btn btn-outline-primary tubebut" type="button">24</button>
+                        </div>
+                        <div id="dscresults">
+
+                        </div>
+                    </p>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" id="dsccalculate">Calculate</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="js/chart.js"></script>
+    <script src="js/jquery-3.6.0.min.js"></script>
+    <script type="text/javascript" src="DataTables/datatables.min.js"></script>
+    <!--script type="text/javascript" src="DataTables-1.10.24/js/dataTables.bootstrap4.js"></script-->
+    <script type="text/javascript" src="DataTables-1.10.24/bs5/dataTables.bootstrap5.min.js"></script>
+    <script src="js/bootstrap.bundle.min.js"></script>
+    <script>
+        /*Serial dilution calculator.
+        For a given FV (final volume), and a given dilution factor (DF),
+        VP=FV*DF/(1-DF)
+        Were VP is the pass volume.
+        */
+        var moleculeSelected = "None"
+        var maxCon = 0
+        var minCon = 0
+        var isMouseDown = false;
+
+
+        function savetemplate(filename) {
+            data = {
+                'filename': filename,
+                'cells': [],
+                'concentrations': []
+            }
+            //I have to store the molecule for each cell:
+            $('#welltable tbody tr td').each(function (i) {
+                ycoord = this.parentElement.rowIndex;
+                xcoord = this.cellIndex;
+                cellname = xcoord + "-" + ycoord
+                cellvalue = $(this).text()
+                if (cellvalue == String.fromCharCode(160)) {
+                    cellvalue = ""
+                }
+                //console.log(cellname,cellvalue)
+                d = {}
+                d[cellname] = cellvalue
+                data['cells'].push(d)
+            })
+            //Now, store concetrations:
+            for (hh = 1; hh <= 24; hh++) {
+                //console.log(hh)
+
+
+                v = ($("#conc-col-" + hh).val())
+                d = {}
+                d['r' + hh] = v
+                data['concentrations'].push(d)
+            }
+            console.log(data)
+            jsonforserver = JSON.stringify(data)
+
+            url = "/save_kd_template/"
+            var request = new XMLHttpRequest();
+            request.open('POST', url);
+            request.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+            request.onload = function (e) {}
+            request.send(jsonforserver);
+
+
+        }
+
+        function loadtemplate(filename) {
+            var request = new XMLHttpRequest();
+
+
+            request.open('GET', '/kd_template/' + filename, false); // `false` makes the request synchronous
+            request.send(null);
+
+            if (request.status === 200) {
+                console.log("ok");
+                //console.log(request.response)
+                items = JSON.parse(request.response)
+                //console.log(items)
+
+
+
+                items["cells"].forEach(function (item) {
+                    //console.log(item)
+                    for (const [key, value] of Object.entries(item)) {
+                        a = key;
+                        b = item[key]
+                        spla = a.split("-")
+                        xc = spla[0]
+                        yc = spla[1]
+                        table = document.getElementById('welltable')
+                        var cell = table.rows[yc].cells[xc]
+                        cl = "cell" + b
+                        if (cl == "cell") {
+                            cl = 'cellNone'
+                        }
+                        $(cell).removeClass()
+                        $(cell).addClass(cl)
+                        $(cell).text(b)
+                    }
+                })
+                items["concentrations"].forEach(function (item) {
+                    for (const [key, value] of Object.entries(item)) {
+                        a = key
+                        b = item[key]
+                        console.log(a, b)
+                        cell = a.substring(1, 1000)
+                        console.log(cell)
+                        $("#conc-col-" + cell).val(b)
+                    }
+                })
+                refresh_transparencies()
+            }
+
+        }
+
+        function populate_load_list() {
+            //connect to server and get template names and populate load list.
+            var items = ["test1", "test2"]
+            selector = $("#load_list")
+            selector.empty()
+            selector.append('<option value="__MENUITEM__">' + "Select template:" + "</option>")
+            //"Select template:" has value "__MENUITEM__"
+            var request = new XMLHttpRequest();
+
+
+            request.open('GET', '/kdtemplatelist/', false); // `false` makes the request synchronous
+            request.send(null);
+
+            if (request.status === 200) {
+                console.log("ok");
+                //console.log(request.response)
+                items = JSON.parse(request.response)
+            }
+            console.log(items)
+            items.forEach(function (item, index) {
+                selector.append('<option value="' + item + '">' + item + "</option>")
+
+            })
+
+        }
+
+        function refresh_transparencies() {
+            //console.log("rt")
+            cvals = []
+            cvals2 = []
+            //Get all values from concentration inputs:
+            for (hh = 1; hh <= 24; hh++) {
+                //console.log(hh)
+
+
+                v = (parseFloat($("#conc-col-" + hh).val()))
+                v2 = 0
+                if (!isNaN(v)) {
+                    cvals.push(v)
+                    v2 = v
+
+                }
+                cvals2.push(v2)
+
+            }
+
+
+
+            //console.log(cvals)
+            minval = Math.min(...cvals)
+            maxval = Math.max(...cvals)
+            //console.log(cvals,minval,maxval)
+            if (cvals.length == 0) {
+                return
+            }
+            if (minval == maxval) {
+                return
+            }
+
+            //cvals2 contains [] for each column, and 0 if box is empty or invalid.
+            mm = maxval - minval
+            logbounds = Math.log10(mm / mm) - Math.log10(minval / mm)
+            //Then for each cell:
+            $('#welltable tbody tr td').each(function (i) {
+                ycoord = this.parentElement.rowIndex;
+                xcoord = this.cellIndex;
+                //console.log(xcoord,ycoord)
+                //console.log($(this).attr("class"))
+                if ($(this).attr("class") != undefined & $(this).attr("class") != "cellNone") {
+
+                    $(this).css("background-color", '')
+                    c = $(this).css("background-color")
+                    conc = cvals2[xcoord - 1]
+                    a = Math.log10((conc - minval) / mm) / logbounds
+                    if ((conc - minval) == 0) {
+                        a = -1
+                    }
+                    alpha = 1 - (0.4 + (0.6 * (-a)))
+
+                    console.log(a, alpha)
+                    col = icolor(c)
+                    r = "rgba(" + col[0] + ", " + col[1] + "," + col[2] + "," + alpha + ")"
+                    //console.log(minval,maxval,col,alpha,r)
+                    $(this).css("background-color", r);
+                }
+
+            })
+        }
+
+        function icolor(rgb1) {
+            //console.log(rgb1)
+            rgb = rgb1.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+            //console.log(rgb)
+            rgba = rgb1.match(/^rgba\((\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)$/);
+            //console.log("*",rgba)
+            if (rgb == null) {
+                rgb = rgba
+                //console.log(rgb,rgba,rgb1)
+            }
+            var red = parseInt(rgb[1]);
+            var green = parseInt(rgb[2]);
+            var blue = parseInt(rgb[3]);
+            if ((red == 0) & (green == 0) & (blue == 0)) {
+                red = 255;
+                green = 255, blue = 255
+            }
+            //console.log(rgb,rgba,red,green,blue)
+            return [red, green, blue]
+        }
+
+        window.onload = function () {
+            //for each cell in table, get text and appy clas cell+text: cellA, cellB, cellC...
+            $('#molecule-selector-table tbody tr td').each(function (i) {
+                //console.log($(this))
+                //$(cell).html(tickchar)
+                //console.log($(this).text())
+                t = $(this).text()
+
+                if (t == String.fromCharCode(160)) //&nbsp;
+                {
+                    t = "None"
+                }
+                //console.log($(this).html(),t)
+                $(this).addClass("cell" + t)
+                $(this).children().first().addClass("cell" + $(this).text())
+                c = $(this).css("background-color")
+                //console.log(c)
+                col = icolor(c)
+                //console.log(c,col)
+                //$(this).css("background-color", "rgba("+col[0]+", "+ col[1] + "," + col[2] + ",0.5)");
+
+            })
+
+
+
+            $('#molecule-selector-table tbody tr td').click(function (e) {
+                console.log(e)
+
+
+                ycoord = e.delegateTarget.parentElement.rowIndex;
+                xcoord = e.delegateTarget.cellIndex;
+
+                //Remove all td-sel from table:
+                $('#molecule-selector-table tbody tr td span').each(function (i) {
+                    $(this).removeClass("td-sel")
+                })
+                $(e.delegateTarget).children().first().addClass("td-sel")
+                moleculeSelected = $(this).text()
+                if (moleculeSelected == String.fromCharCode(160)) {
+                    moleculeSelected = "None"
+                }
+                $('#molselected').text(moleculeSelected)
+
+                //c=$(e.delegateTarget).css("background-color")
+                //console.log(xcoord,ycoord,c)
+
+
+            })
+
+            //fill concetrations-div
+            //                <p>
+            //    Column 01: <input type="text" id="conc-col-1"> &mu;M
+            //            </p>
+            for (i = 1; i < 25; i++) {
+                cid = 'conc-col-' + i
+                newinput = '<div class="row"><label class="col-2 col-form-label" for="' + cid + '">Column ' + i +
+                    '(&mu;M): </label><div class="col-2"><input class="conctext form-control form-control-sm" type="text" id="' +
+                    cid + '"></div>'
+                newinput = newinput + '<div class="col-8 noshow dilbuttonrow">'
+                newinput = newinput + '<button class="btn btn-primary btn-sm m-1" id="by2-down-' + i +
+                    '">&#8595/2</button>'
+                newinput = newinput + '<button class="btn btn-primary btn-sm m-1"  id="by10-down-' + i +
+                    '">&#8595/10</button>'
+                newinput = newinput + '<button class="btn btn-primary btn-sm m-1" id="bysqrt2-down-' + i +
+                    '">&#8595/1.400</button>'
+                newinput = newinput + '<button class="btn btn-primary btn-sm m-1" id="bycustom-down-' + i +
+                    '">&#8595/custom</button>'
+
+                newinput = newinput + '<button class="btn btn-info btn-sm m-1" id="by2-up-' + i +
+                    '">&#8593/2</button>'
+                newinput = newinput + '<button class="btn btn-info btn-sm m-1" id="by10-up-' + i +
+                    '">&#8593/10</button>'
+                newinput = newinput + '<button class="btn btn-info btn-sm m-1" id="bysqrt2-up-' + i +
+                    '">&#8593/1.400</button>'
+                newinput = newinput + '<button class="btn btn-info btn-sm m-1" id="bycustom-up-' + i +
+                    '">&#8593/custom</button>'
+
+                newinput = newinput + '</div>'
+                newinput = newinput + '</div>'
+                $("#concentrationsdiv").append(newinput)
+            }
+
+
+            $('.conctext').focusin(function (e) {
+                myid = $(e.delegateTarget)
+                $(".dilbuttonrow").each(function (i) {
+                    $(this).addClass("noshow")
+                })
+                myid.parent().parent().children(".dilbuttonrow").removeClass("noshow")
+            })
+            $('.conctext').focusout(function (e) {
+                //myid=$(e.delegateTarget)
+                //myid.parent().parent().children(".dilbuttonrow").addClass("noshow")
+            })
+            $('.conctable').mouseleave(function (e) {
+                $(".dilbuttonrow").each(function (i) {
+                    $(this).addClass("noshow")
+                })
+                $(':text').blur()
+            })
+
+            $('#concentrationsdiv button').click(function (e) {
+                //console.log(e)
+                myid = $(e.delegateTarget).attr('id')
+                splid = myid.split("-")
+                startcol = splid[2]
+                direction = splid[1]
+                multiplier = splid[0]
+                control = "#conc-col-" + startcol
+                startingvalue = $(control).val()
+                customvalue = $("#custom-mult").val()
+                v = parseFloat(startingvalue)
+                c = parseFloat(customvalue)
+                s2 = Math.sqrt(2)
+                if (!isNaN(v))
+
+                {
+                    console.log("Starting from ", startcol, "direction:", direction, "divide by",
+                        multiplier, ". Starting value:", v, control)
+                    lastvalue = v
+                    mult = 1
+                    if (multiplier == "by2") {
+                        mult = 0.5
+                    }
+                    if (multiplier == "by10") {
+                        mult = 0.1
+                    }
+                    if (multiplier == "bysqrt2") {
+                        mult = 1 / 1.400
+                    }
+                    if (multiplier == "bycustom") {
+                        if (!isNaN(c)) {
+                            mult = (1 / c)
+                        } else {
+                            return
+                        }
+                    }
+                    if (direction == "down") {
+
+                        for (hh = (parseInt(startcol) + 1); hh <= 24; hh++) {
+                            //console.log(hh)
+                            lastvalue = lastvalue * mult
+                            $("#conc-col-" + hh).val(lastvalue.toFixed(3))
+                            if (lastvalue < 0.01) {
+                                $("#conc-col-" + hh).val(lastvalue.toExponential(3))
+                            }
+                            //$("#conc-col-"+hh).val(lastvalue)
+                        }
+                    } else {
+                        for (hh = parseInt(startcol) - 1; hh >= 0; hh--) {
+                            //console.log(hh)
+                            lastvalue = lastvalue * mult
+
+                            $("#conc-col-" + hh).val(lastvalue.toFixed(3))
+                            if (lastvalue < 0.01) {
+                                $("#conc-col-" + hh).val(lastvalue.toExponential(3))
+                            }
+
+                            //$("#conc-col-"+hh).val(lastvalue)
+                        }
+                    }
+
+                } else {
+                    //console.log("invalid value")
+                }
+                refresh_transparencies()
+            })
+
+
+            $('#clearbutton').click(function (e) {
+                $('#concentrationsdiv input').each(function (i) {
+                    $(this).val("")
+                })
+            })
+
+            $('#load_button').click(function (e) {
+
+                //Connect to server and load template
+                template_to_load = $("#load_list").children("option:selected").val()
+                //console.log(template_to_load)
+                if (template_to_load != "__MENUITEM__") {
+                    //connect to server and get template.
+                    console.log("loading " + template_to_load)
+                    loadtemplate(template_to_load)
+                }
+
+
+            })
+
+            $('#save_button').click(function (e) {
+
+                //Connect to server and load template
+                template_to_save = $("#save_input").val()
+                //console.log(template_to_load)
+                if (template_to_save != "") {
+                    //connect to server and get template.
+                    console.log("saving " + template_to_save)
+                    savetemplate(template_to_save)
+                }
+
+
+            })
+
+
+            document.getElementById('welltable').addEventListener('mouseover', function (e) {
+                table = document.getElementById('welltable')
+                ycoord = e.target.parentElement.rowIndex;
+                xcoord = e.target.cellIndex;
+                //console.log("My position in table is: " + xcoord + "x " + ycoord + "y");
+                if ((xcoord > 0) & (ycoord > 0)) {
+                    document.getElementById('well-p').textContent = String.fromCharCode(64 + ycoord) +
+                        xcoord
+
+
+                }
+
+            }, false);
+
+            $("#welltable td")
+                .mousedown(function () {
+                    isMouseDown = true;
+                    table = document.getElementById('welltable')
+                    $(this).removeClass()
+                    cl = "cell" + moleculeSelected
+                    if (cl != "cellNone") {
+                        $(this).addClass("cell" + moleculeSelected)
+                    }
+                    m = moleculeSelected
+                    if (m == "None") {
+                        m = ""
+                    }
+                    $(this).text(m)
+                    //refresh_transparencies()
+
+
+
+                    return false; // prevent text selection
+
+
+                })
+                .mouseover(function () {
+                    if (isMouseDown) {
+                        $(this).removeClass()
+                        cl = "cell" + moleculeSelected
+                        if (cl != "cellNone") {
+                            $(this).addClass("cell" + moleculeSelected)
+                        }
+
+                        m = moleculeSelected
+                        if (m == "None") {
+                            m = ""
+                        }
+                        $(this).text(m)
+                        //refresh_transparencies()
+                    }
+                })
+                .bind("selectstart", function () {
+                    return false; // prevent text selection in IE
+                });
+
+            $(document)
+                .mouseup(function () {
+                    wasMouseDown = isMouseDown
+                    isMouseDown = false;
+                    if (wasMouseDown) {
+                        refresh_transparencies()
+                    }
+                });
+
+
+            $('#concentrationsdiv input').change(function (e) {
+                refresh_transparencies()
+            })
+
+
+            /*
+            Serial dilution calculator.
+            For a given FV (final volume), and a given dilution factor (DF),
+            VP=FV*DF/(1-DF)
+            Were VP is the pass volume.
+
+            Prepare VP+FV of the starting concentration volume.
+            Then pass VP of the solution + FV of buffer to the next well.
+            Then repeat as needed until all wells are filled.
+
+
+            */
+
+            populate_load_list()
+
+
+
+            $(".toggleunit").click(function (e) {
+        $(".toggleunit").each(function(i,e){
+        $(e).toggleClass("btn-primary btn-light")
+        })
+        
+
+    })
+    $("#dsc10").click(function () {
+        $("#dscdf").val((1/10).toFixed(4))
+
+    })
+    $("#dsc2").click(function () {
+        $("#dscdf").val((1/2).toFixed(4))
+
+    })
+    $("#dsc14").click(function () {
+        $("#dscdf").val((1/1.4).toFixed(4))
+        
+
+    })
+    $(".tubebut").click(function (e) {
+        console.log(e)
+        $("#dscnumbtub").val($(e.target).text())
+
+    })
+
+    $("#dsccalculate").click(function () {
+        answer="sdfgsd"
+        volume=parseFloat($("#dscv").val())
+        df=parseFloat($("#dscdf").val())
+        if (df=="0.7143")
+            {
+                df=1/1.4
+            }
+
+        
+
+        vp=(volume*df/(1-df)).toFixed(3)
+
+
+
+        answer="<p>Prepare "+ (parseFloat(vp)+volume) + " &mu;L of the highest concentration sample.</p>"
+        answer=answer+"<p>Each step on the dilution series is prepared from "+vp +" &mu;L of the previous concentration in the series plus "+ volume+" &mu;L of solvent.</p>"
+        
+        
+        
+        allOK=1
+        if ((isNaN(df))| (df<0))
+            {
+                answer="Dilution factor must be a positive number"
+                allOK=0
+            }
+        if ((isNaN(volume)) | (volume<0))
+            {
+                answer="Volume must be a positive number"
+                allOK=0    
+            }
+        
+        if (allOK==1){
+            ntubes=parseFloat($("#dscnumbtub").val())
+            startconc=parseFloat($("#dscconc").val())
+            console.log(ntubes)
+            if (ntubes>1 & startconc>0)
+                {
+                    ismilli=false
+                    if ($("#millimolar").hasClass("btn-primary"))
+                        {ismilli=true}
+                    console.log(ismilli)
+                    tabl="<table class='table table-sm' id='diltable'>"
+                        t1="<tr><th scope='row' class='th2'>Tube</th>"
+                        t2="<tr><th scope='row'>Concentration</th>"
+                        t3="<tr><th scope='row'>Concentration</th>"
+                    for (t=1;t<=ntubes;t++)
+                        {
+                            if (((t-1)%10 ==0) & (t>1))
+                            {
+                                tabl=tabl+t1+t2+t3
+                                t1="</tr><tr><th scope='row' class='th2'>Tube</th>"
+                                t2="</tr><tr><th scope='row'>Concentration</th>"
+                                t3="</tr><tr><th scope='row'>Concentration</th>"
+                                
+                            }
+                            t1=t1+"<th class='th2'>"+t+"</th>"
+
+                            unit="mM"
+                            c=startconc*Math.pow(df,(t-1))
+                            c2=c
+                            c2=c2/1000
+
+                            if (!ismilli)
+                                {c=c/1000
+                                c2=c2/1000}
+                            
+                            if (c<1){
+                                c=c*1000
+                                unit="&mu;M"
+                            }
+                            
+                            if (c<1){
+                                c=c*1000
+                                unit="nM"
+                            }
+                            if (c<1){
+                                c=c*1000
+                                unit="pM"
+                            }
+                            if (c<1){
+                                c=c*1000
+                                unit="fM"
+                            }
+                            if (c<1){
+                                c=c*1000
+                                unit="aM"
+                            }
+                            if (c<1){
+                                c=c*1000
+                                unit="zM"
+                            }
+                            if (c<1){
+                                c=c*1000
+                                unit="yM"
+                            }
+                            t2=t2+"<td>"+c.toFixed(3)+"&nbsp;"+unit+"</td>"
+                            t3=t3+"<td>"+c2.toExponential(3)+"&nbsp;"+"M"+"</td>"
+                        }
+                    t1=t1+"</tr>"
+                    t2=t2+"</tr>"
+                    t3=t3+"</tr>"
+                    tabl=tabl+t1+t2+t3+"</table>"
+                    answer=answer+tabl
+                }
+        }
+        $("#dscresults").html(answer)
+
+    })
+
+            
+
+
+        }
+    </script>
+
+</body>
+
+</html>

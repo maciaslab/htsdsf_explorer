@@ -1,0 +1,243 @@
+<html>
+    <head>
+        <link href="css/bootstrap.min.css" rel="stylesheet">
+        <link rel="stylesheet" type="text/css" href="DataTables/datatables.min.css" />
+        <!--link rel="stylesheet" type="text/css" href="DataTables/DataTables-1.10.24/css/dataTables.bootstrap4.css"/-->
+        <link rel="stylesheet" type="text/css" href="DataTables/bs5/dataTables.bootstrap5.min.css" />
+    
+        <!--
+            02/06/2021  - Fixed highlight gone when changing effect dropdown in datatable.
+                        - Allowed no active references.
+                        - Added manual reference tm setting.
+                        - Darker colors for graphs
+                        - Added Applied Biosystems formats: 96 and 396 wells.
+            03/06/2021  - Better zoom
+                        - Choose more relevant tm for curves where we have more than 1 peak on derivative.
+                        - Added "format" subheader to plate
+            04/06/2021  - Now to select multiple wells you need to press shift
+                        - Show all reference wells. Can be turned off.
+                        - Report name is now based on selected filename, or "selection.xlsx" if more than one plate is selected.
+            07/06/2021
+                        -Reference cells marked as bad data now are skipped.
+                        -DONE: Implement this on report (server.py) 
+                        -DONE?:implement single cells in reference array (and not only Row or Col) in server.py
+                        -reference_rc now also can contain cells in preparation for individual reference cells with ALT. (line 988)
+                        -TO DO: ^^
+                        
+                        -DONE: Auto cache in background to speed up first read (server.py)
+                        -TO DO: One line instructions of keys (SHFT, ALT) under well table.
+                        -DONE: Add abs(dTm) to report, for easier sorting
+    
+    
+    
+        -->
+    
+        <!--link rel="stylesheet" href="css/bootstrap-dark.min.css" rel="stylesheet"-->
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            #diltable td{
+            white-space: nowrap;
+            }
+            .th2{
+            padding-top: 20px !important;
+            }
+        </style>
+        </head>
+<body>
+<div class="modal-dialog modal-xl">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title" id="exampleModalLabel">Dilution Series calculator</h5>
+            
+        </div>
+        <div class="modal-body">
+            <p>
+
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" placeholder="Final Volume at each well" id="dscv" aria-describedby="basic-addon2">
+                    <span class="input-group-text" id="basic-addon2">&mu;L</span>
+                </div>
+
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" placeholder="Dilution factor" id="dscdf" aria-describedby="basic-addon2">
+                    <button class="btn btn-outline-primary" type="button" id="dsc10">1:10</button>
+                    <button class="btn btn-outline-primary" type="button" id="dsc2">1:2</button>
+                    <button class="btn btn-outline-primary" type="button" id="dsc14">1:1.4</button>
+                </div>
+                <div class="form-label">Optional:</div>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" placeholder="Starting concentration" id="dscconc" aria-describedby="basic-addon2">
+                    <span class="input-group-text btn-primary toggleunit" id="millimolar">mM</span>
+                    <span class="input-group-text btn-light toggleunit" id="micromolar">&mu;M</span>
+                </div>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" placeholder="Number of tubes" id="dscnumbtub" aria-describedby="basic-addon2">
+                    <button class="btn btn-outline-primary tubebut" type="button" >2</button>
+                    <button class="btn btn-outline-primary tubebut" type="button" >3</button>
+                    <button class="btn btn-outline-primary tubebut" type="button" >4</button>
+                    <button class="btn btn-outline-primary tubebut" type="button" >5</button>
+                    <button class="btn btn-outline-primary tubebut" type="button" >6</button>
+                    <button class="btn btn-outline-primary tubebut" type="button" >7</button>
+                    <button class="btn btn-outline-primary tubebut" type="button" >8</button>
+                    <button class="btn btn-outline-primary tubebut" type="button" >9</button>
+                    <button class="btn btn-outline-primary tubebut" type="button" >10</button>
+                    <button class="btn btn-outline-primary tubebut" type="button" >12</button>
+                    <button class="btn btn-outline-primary tubebut" type="button" >16</button>
+                    <button class="btn btn-outline-primary tubebut" type="button" >24</button>
+                </div>
+                <div id="dscresults">
+                    
+                </div>
+            </p>
+
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-primary" id="dsccalculate">Calculate</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+
+        </div>
+    </div>
+</div>
+<script src="js/jquery-3.6.0.min.js"></script>
+<script src="js/bootstrap.bundle.min.js"></script>
+<script>
+    window.onload = function () {
+    $(".toggleunit").click(function (e) {
+        $(".toggleunit").each(function(i,e){
+        $(e).toggleClass("btn-primary btn-light")
+        })
+        
+
+    })
+    $("#dsc10").click(function () {
+        $("#dscdf").val((1/10).toFixed(4))
+
+    })
+    $("#dsc2").click(function () {
+        $("#dscdf").val((1/2).toFixed(4))
+
+    })
+    $("#dsc14").click(function () {
+        $("#dscdf").val((1/1.4).toFixed(4))
+        
+
+    })
+    $(".tubebut").click(function (e) {
+        console.log(e)
+        $("#dscnumbtub").val($(e.target).text())
+
+    })
+
+    $("#dsccalculate").click(function () {
+        answer="sdfgsd"
+        volume=parseFloat($("#dscv").val())
+        df=parseFloat($("#dscdf").val())
+        if (df=="0.7143")
+            {
+                df=1/1.4
+            }
+
+        
+
+        vp=(volume*df/(1-df)).toFixed(3)
+
+
+
+        answer="<p>Prepare "+ (parseFloat(vp)+volume) + " &mu;L of the highest concentration sample.</p>"
+        answer=answer+"<p>Each step on the dilution series is prepared from "+vp +" &mu;L of the previous concentration in the series plus "+ volume+" &mu;L of solvent.</p>"
+        
+        
+        
+        allOK=1
+        if ((isNaN(df))| (df<0))
+            {
+                answer="Dilution factor must be a positive number"
+                allOK=0
+            }
+        if ((isNaN(volume)) | (volume<0))
+            {
+                answer="Volume must be a positive number"
+                allOK=0    
+            }
+        
+        if (allOK==1){
+            ntubes=parseFloat($("#dscnumbtub").val())
+            startconc=parseFloat($("#dscconc").val())
+            console.log(ntubes)
+            if (ntubes>1 & startconc>0)
+                {
+                    ismilli=false
+                    if ($("#millimolar").hasClass("btn-primary"))
+                        {ismilli=true}
+                    console.log(ismilli)
+                    tabl="<table class='table table-sm' id='diltable'>"
+                        t1="<tr><th scope='row' class='th2'>Tube</th>"
+                        t2="<tr><th scope='row'>Concentration</th>"
+                        t3="<tr><th scope='row'>Concentration</th>"
+                    for (t=1;t<=ntubes;t++)
+                        {
+                            if (((t-1)%10 ==0) & (t>1))
+                            {
+                                tabl=tabl+t1+t2+t3
+                                t1="</tr><tr><th scope='row' class='th2'>Tube</th>"
+                                t2="</tr><tr><th scope='row'>Concentration</th>"
+                                t3="</tr><tr><th scope='row'>Concentration</th>"
+                                
+                            }
+                            t1=t1+"<th class='th2'>"+t+"</th>"
+
+                            unit="mM"
+                            c=startconc*Math.pow(df,(t-1))
+                            c2=c
+                            c2=c2/1000
+
+                            if (!ismilli)
+                                {c=c/1000
+                                c2=c2/1000}
+                            
+                            if (c<1){
+                                c=c*1000
+                                unit="&mu;M"
+                            }
+                            
+                            if (c<1){
+                                c=c*1000
+                                unit="nM"
+                            }
+                            if (c<1){
+                                c=c*1000
+                                unit="pM"
+                            }
+                            if (c<1){
+                                c=c*1000
+                                unit="fM"
+                            }
+                            if (c<1){
+                                c=c*1000
+                                unit="aM"
+                            }
+                            if (c<1){
+                                c=c*1000
+                                unit="zM"
+                            }
+                            if (c<1){
+                                c=c*1000
+                                unit="yM"
+                            }
+                            t2=t2+"<td>"+c.toFixed(3)+"&nbsp;"+unit+"</td>"
+                            t3=t3+"<td>"+c2.toExponential(3)+"&nbsp;"+"M"+"</td>"
+                        }
+                    t1=t1+"</tr>"
+                    t2=t2+"</tr>"
+                    t3=t3+"</tr>"
+                    tabl=tabl+t1+t2+t3+"</table>"
+                    answer=answer+tabl
+                }
+        }
+        $("#dscresults").html(answer)
+
+    })
+}
+</script>
+</body>
+</html>

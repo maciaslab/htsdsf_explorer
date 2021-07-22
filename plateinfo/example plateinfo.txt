@@ -1,0 +1,3 @@
+Plate+Well	ID	SMILES	PLATE_ID	WELL
+P30-1-A03	MOL1	N[C@@H](COP(O)(O)=O)C(O)=O |&1:1,r|	P30-1	A03
+P30-1-A04	MOL2	c1nn[nH]c1-c1cccnc1	P30-1	A04
