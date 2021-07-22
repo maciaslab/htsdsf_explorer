@@ -2,8 +2,10 @@
 
 DSF data explorer focused in HTS.
 Used to find binders to proteins which alter Tm.
-Objectives: A program that is agile and allows to analyze a very high number of curves in a very short time.
-The program finds wells for wwhich dTm with respect the reference is higher than a given threshold.
+
+##ODescription 
+A program that is agile and allows to analyze a very high number of curves in a very short time.
+The program finds wells for which dTm with respect the reference is higher than a given threshold.
 Then allows the user to validate the Tm with the minimum number of clicks.
 The program has been tested in Mac OSX and Windows, but any modern OS with python3 and a web browser should run it.
 
