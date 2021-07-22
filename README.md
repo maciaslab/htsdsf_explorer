@@ -11,10 +11,15 @@ settings.ini contains the program settings.
 Default file:
 
 [Default]
+
 data_path=data/
+
 cache_path=cache/
+
 persistent_path=persistent/
+
 plateinfo_path=plateinfo/
+
 
 # Installation
 
@@ -65,14 +70,15 @@ Arbitrary number of reference wells, averaged and with stddev.
 data:
 Put data files in folders at {data_path}
 Supported file types:
-txt: 
--Quantstudio 96 wells
--Quantstudio 384 wells
--Lightcycler
+### txt: 
+* Quantstudio 96 wells
+* Quantstudio 384 wells
+* Lightcycler
 
-xlsx:
--Biorad
-
+### xlsx:
+* Biorad
+### gdsf
+* Generic dsf file
 
 plateinfo:
 In HTS experiemnts, the sample plate templates are reused for different proteins.
