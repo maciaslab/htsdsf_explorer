@@ -11,21 +11,25 @@ The program has been tested in Mac OSX and Windows, but any modern OS with pytho
 
 
 
-# Installation
+# Execution
 
 Just download the package and run:
 python server.py
-Program will start a webserver and open browserpointing at http://localhost:5555/index.html
+Program will start a webserver and open a browser pointing at http://localhost:5555/index.html
 
 ## Windows Installation Instructions
+There are two options to run the software in windows:
+
+### 1- The easy way: Download a release
+Just download the latest windows release, unpack it and run the exe file.
+Find the file here : https://github.com/maciaslab/htsdsf_explorer/releases/latest
+
+
+### 2- The less easy way: Installing python
+
 1. Download python 3 64-bits from https://www.python.org/downloads/ and install it, checking the "Add to path"· option.
 
-2. RUN:
-`python    -m pip install scipy pandas xlsxwriter openpyxl matplotlib python-docx `
-
-3. RUN:
-`python server.py`
-
+2. Follow the rest of the instructions 
 
 ## Requisites 
 Python 3
@@ -34,7 +38,7 @@ Python 3
 scipy pandas xlsxwriter openpyxl numpy matplotlib python-docx
 
 ### To install modules:
-`python3-m pip install scipy pandas xlsxwriter openpyxl numpy matplotlib python-docx`
+`python3    -m pip install scipy pandas xlsxwriter openpyxl numpy matplotlib python-docx`
 
 # Use
 Program in python, interface through web server.
