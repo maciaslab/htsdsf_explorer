@@ -1,0 +1,3865 @@
+<html>
+
+<head>
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="DataTables/datatables.min.css" />
+    <!--link rel="stylesheet" type="text/css" href="DataTables/DataTables-1.10.24/css/dataTables.bootstrap4.css"/-->
+    <link rel="stylesheet" type="text/css" href="DataTables/bs5/dataTables.bootstrap5.min.css" />
+
+    <!--
+        02/06/2021  - Fixed highlight gone when changing effect dropdown in datatable.
+                    - Allowed no active references.
+                    - Added manual reference tm setting.
+                    - Darker colors for graphs
+                    - Added Applied Biosystems formats: 96 and 396 wells.
+        03/06/2021  - Better zoom
+                    - Choose more relevant tm for curves where we have more than 1 peak on derivative.
+                    - Added "format" subheader to plate
+        04/06/2021  - Now to select multiple wells you need to press shift
+                    - Show all reference wells. Can be turned off.
+                    - Report name is now based on selected filename, or "selection.xlsx" if more than one plate is selected.
+        07/06/2021
+                    -Reference cells marked as bad data now are skipped.
+                    -DONE: Implement this on report (server.py) 
+                    -DONE?:implement single cells in reference array (and not only Row or Col) in server.py
+                    -reference_rc now also can contain cells in preparation for individual reference cells with ALT. (line 988)
+                    -TO DO: ^^
+                    
+                    -DONE: Auto cache in background to speed up first read (server.py)
+                    -TO DO: One line instructions of keys (SHFT, ALT) under well table.
+                    -DONE: Add abs(dTm) to report, for easier sorting
+
+
+
+    -->
+
+    <!--link rel="stylesheet" href="css/bootstrap-dark.min.css" rel="stylesheet"-->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        #plateslist
+        {
+            user-select:none;
+        }
+        .scrollable-dd {
+            height: auto;
+            max-height: 200px;
+            overflow-x: hidden;
+        }
+
+        .badge {
+           float:right;
+            }
+        .navbar-brand {
+            padding-left: 50px;
+        }
+
+        .noshow {
+            display: none;
+        }
+
+        .not-expanded {
+            display: none;
+        }
+
+        #welltable tbody {
+            border-right: 3px solid grey;
+            z-index: 200;
+        }
+
+        .welltitle {
+            float: left;
+        }
+
+        .closebutton {
+            float: right;
+            padding: 2px;
+            font-size: .5rem;
+            font-weight: bold;
+        }
+
+        #myChart {
+            background-color: white;
+            /* Equal to scaleX(0.7) scaleY(0.7) */
+
+        }
+
+        #myChart2 {
+            background-color: white;
+            /* Equal to scaleX(0.7) scaleY(0.7) */
+
+        }
+
+        .hiddentick {
+            visibility: hidden;
+        }
+
+        .folnam
+        {
+            font-weight: bold;
+        }
+        .mini {
+
+            transform: scale(0.8);
+            padding: 0px;
+            margin-top: -6%;
+            margin-bottom: -10%;
+            /* Equal to scaleX(0.7) scaleY(0.7) */
+
+        }
+
+        #welltable {
+            overflow: hidden;
+            user-select:none;
+        }
+
+        #welltable tr:hover {
+            /*border:3px solid grey;*/
+            box-shadow: inset 0px 0px 0px 2px grey;
+
+        }
+
+
+
+        #welltable td,
+        #welltable th {
+            font-weight: bold;
+            position: relative;
+            text-align: center;
+
+            /*z-index: 100 !important;*/
+        }
+
+        .sorting ::before {
+            color: red !important;
+            font-size: smaller !important;
+        }
+
+        #welltable td {
+            color: rgba(0, 0, 0, 0)
+        }
+
+        #welltable td:hover::after,
+        #welltable th:hover::after {
+            content: "";
+            position: absolute;
+            box-shadow: inset 0px 0px 0px 2px grey;
+            /*border:3px solid grey;*/
+            /*background-color: grey;*/
+            left: 0;
+            top: -5000px;
+            height: 10000px;
+            width: 100%;
+            z-index: -100;
+        }
+
+        #welltable .reference {
+            color: green;
+
+        }
+
+        #welltable tbody tr th {
+            border-top: 4px solid rgba(0, 0, 0, 0);
+
+
+        }
+
+        .dataTable thead tr th::before {
+            /*left: 0px;*/
+            right: 8px !important;
+            font-size: smaller !important;
+
+        }
+
+        .dataTable thead tr th::after {
+            right: -1px !important;
+            /*color:red !important;*/
+            font-size: smaller !important;
+
+        }
+
+        #datatable tr {
+            border-collapse: separate;
+        }
+
+        #datatable td {
+            text-align: center;
+            vertical-align: middle;
+            border-collapse: collapse;
+        }
+
+        #datatable {
+            font-size: 80%;
+        }
+
+        #datatable .td-stabilizing {
+            background-color: #D5F5E3;
+        }
+
+        #datatable .td-destabilizing {
+            background-color: #FDEBD0;
+        }
+
+        #datatable .td-uncertain {
+            background-color: #fdd0f5;
+        }
+
+        .td-reference {
+            background-color: lightgrey;
+        }
+
+        .td-stabilizing {
+            background-color: chartreuse;
+        }
+
+        .td-destabilizing {
+            background-color: orange;
+        }
+
+        .td-uncertain {
+            background-color: plum;
+        }
+
+        .td-warning {
+
+            background-image: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg"><rect width="0.2" x="0" y="-0.25" height="1.5" fill="rgba(255, 0, 0, .5)" transform="rotate(-45,0.5,0.5)"/><rect x="0.4" y="-0.25" width="0.2" height="1.5" fill="rgba(255, 0, 0, .5)" transform="rotate(-45,0.5,0.5)"/><rect x="0.8" y="-0.25" width="0.2" height="1.5" fill="rgba(255, 0, 0, .5)" transform="rotate(-45,0.5,0.5)"/></svg>');
+            background-repeat: no-repeat;
+            background-size: 120%;
+            /*background-color:red;*/
+        }
+
+        #welltable .td-sel {
+            box-shadow: inset 0px -0.5px 0px 3px green;
+            /*border: 2px solid green;
+            border-bottom: 2px solid green !important;
+            border-collapse: collapse;*/
+
+        }
+
+        #datatable .td-highlight {
+            box-shadow: inset 0px -0.5px 0px 3px cornflowerblue;
+            /*border: 20px solid red !important;
+            border-bottom: 8px solid red !important;*/
+            /*border-left: 8px solid cornflowerblue !important;*/
+            z-index: -1000;
+            border-collapse: separate;
+
+        }
+
+        #welltable .td-highlight {
+            box-shadow: inset 0px -0.5px 0px 3px cornflowerblue;
+            /*border: 2px solid cornflowerblue;
+            border-bottom: 2px solid cornflowerblue !important;
+            z-index:-1000;
+            border-collapse: collapse;*/
+
+
+        }
+
+        #welltable .td-validated {
+            color: darkgreen;
+        }
+
+        #welltable td {
+            border: 1px dotted grey;
+            border-collapse: collapse;
+        }
+        .td-well-enabled {
+            background-color: white;
+            border:2px solid  #ABEBC6 !important;
+
+        }
+        .td-well-disabled {
+
+            background-color: #FDEBD0;
+            border:2px solid #FDEBD0 !important;
+        }
+        .molcard
+        {
+            padding:10px;
+            margin-bottom:10px;
+        }
+        .smaller
+        {
+            font-size: smaller;
+        }
+        .kd-button-table
+            {
+                /*border:solid black 1px;*/
+                font-size: smaller;
+                margin:2px;
+                border-collapse: separate;
+                user-select:none;
+
+            }
+        .kd-button-table td
+            {
+                border:none ;/*solid black 1px;*/
+                font-size: smaller;
+                border-radius: 10px;
+                padding:5px;
+            }
+
+        
+        .kdtable{
+            border:solid black 1px !important; 
+            border-right: solid black 1px !important;
+            font-size: smaller;
+            margin:0 auto;
+        }
+        .kdtable td{
+            border:solid black 1px !important; 
+            border-right: solid black 1px !important;
+            font-size: smaller;
+            padding:10px;
+        }
+        .redKdlabel
+        {
+            color:red;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="#">HTSDSF explorer</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav mr-auto">
+                <li class="nav-item m-1">
+                    <button type="button" class="btn btn-primary" id="helpbutton" data-bs-toggle="modal"
+                        data-bs-target="#helpModal">Help</button>
+                </li>
+                <li class="nav-item m-1">
+                    <button type="button" class="btn btn-primary" id="kdbutton" data-bs-toggle="modal"
+                    data-bs-target="#kdModal">Kd calculation</button>
+                </li>
+                <li class="nav-item m-1">
+                    <a class="btn btn-primary role="button href="template_editor.html" target="_blank">Kd template editor</a>
+                </li>
+            </ul>
+
+        </div>
+    </nav>
+
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-3">
+                <div><h3>FILES</h3></div>
+                <div class="overflow-auto" style="height:80vh;">
+
+                    <ul class="list-group small" id="plateslist" style="white-space:nowrap">
+
+
+
+                    </ul>
+                </div>
+                <br>
+                <button class="btn btn-primary disabled noshow" id="quickButton">Batch Validation</button>
+                <button class="btn btn-primary" id="reportButton">Report</button>
+                <br>
+                <br>
+            </div>
+            <div class="col-4">
+                <h6>
+                    <p id="filenamep"></p>
+                </h6>
+                    <small id="formatp" class="small"></small>
+
+                <div class="row p-0 m-0" id="divdatatable">
+                    <table class="table pt-2 table-sm table-hover" id="datatable">
+                        <thead>
+                            <th>Well</th>
+                            <th>Tm</th>
+                            <th>dTm</th>
+                            <th>Effect</th>
+                            <th>Bad data</th>
+                            <th>Validated</th>
+                        </thead>
+                        <tbody>
+
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mini ">
+                    <table id="welltable" class="font-monospace ">
+                        <thead>
+                            <th scope="col"> </th>
+                            <th scope="col">01</th>
+                            <th scope="col">02</th>
+                            <th scope="col">03</th>
+                            <th scope="col">04</th>
+                            <th scope="col">05</th>
+                            <th scope="col">06</th>
+                            <th scope="col">07</th>
+                            <th scope="col">08</th>
+                            <th scope="col">09</th>
+                            <th scope="col">10</th>
+                            <th scope="col">11</th>
+                            <th scope="col">12</th>
+                            <th scope="col">13</th>
+                            <th scope="col">14</th>
+                            <th scope="col">15</th>
+                            <th scope="col">16</th>
+                            <th scope="col">17</th>
+                            <th scope="col">18</th>
+                            <th scope="col">19</th>
+                            <th scope="col">20</th>
+                            <th scope="col">21</th>
+                            <th scope="col">22</th>
+                            <th scope="col">23</th>
+                            <th scope="col">24</th>
+                        </thead>
+                        <tbody>
+
+                            <tr>
+                                <th scope="row">A</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+
+                            </tr>
+                            <tr>
+                                <th scope="row">B</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">C</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">D</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">E</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">F</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">G</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">H</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">I</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">J</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">K</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">L</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">M</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">N</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">O</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">P</th>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+                    <br>
+
+                </div>
+                <p id="well-p">&nbsp;</p>
+                <div>
+                    <p>
+                        Threshold <input class="small inline" type="number" id="threshold" name="Threshold" value="1.00"
+                            min="0" max="10" step="0.05"> &deg;C
+                        ; Reference Tm: <span id="tm-span"> </span>&nbsp;<button type="button" class="inline btn btn-sm btn-primary" id="manualref" data-bs-toggle="modal"
+                        data-bs-target="#manualtmModal">Manual ref. Tm</button><button type="button" class="inline btn btn-sm btn-primary noshow" id="btnsetrefs">Set wells as refs.</button></p> 
+                </div>
+                <div id="miniinstructions" class="small">
+                    <small>Click:Show well; SHIFT+Click: Multiselect well; ALT+Click:Set/Unset well as reference; Click on row/column headers: Set column/row as reference</small>
+                </div>
+                <p class="noshow"> References: <span id="referencelist"></span></p>
+
+                <p class="noshow" id="wellsinuse"> </p>
+            </div>
+            <div class="col-5">
+                <canvas id="myChart"></canvas>
+                <canvas id="myChart2"></canvas>
+                <div class="form-check form-check-inline form-switch">
+                    <input class="form-check-input" type="checkbox" id="zoomButton"></input>
+                    <label class="form-check-label" for="zoomButton">Zoom</label>
+                </div>
+                <div class="form-check form-check-inline form-switch">
+                    <input class="form-check-input" type="checkbox" id="normalizeButton"></input>
+                    <label class="form-check-label" for="normalizeButton">Normalize</label>
+                </div>
+                <div class="form-check form-check-inline form-switch">
+                    <input class="form-check-input" checked type="checkbox" id="showrefsButton"></input>
+                    <label class="form-check-label" for="showrefsButton">Show Refs.</label>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <ul class="dropdown-menu dropdown-menu-sm" id="context-menu">
+        <li><span class="dropdown-header primary" style="width:100%"><span class="welltitle"
+                    id="menu-well-id">Well:</span><button id="menuclosebutton"
+                    class="closebutton btn btn-sm btn-danger">X</button></span></li>
+        <!--li><hr class="dropdown-divider"/></li-->
+        <li><a class="dropdown-item" id="menu-neutral" href="#"><span id="tick-neutral"
+                    class="hiddentick">&#x2713;</span>Neutral</a></li>
+        <li><a class="dropdown-item" id="menu-stab" href="#"><span id="tick-stab"
+                    class="hiddentick">&#x2713;</span>Stabilizing</a></li>
+        <li><a class="dropdown-item" id="menu-destab" href="#"><span id="tick-destab"
+                    class="hiddentick">&#x2713;</span>Destabilizing</a></li>
+        <li><a class="dropdown-item" id="menu-uncer" href="#"><span id="tick-uncer"
+                    class="hiddentick">&#x2713;</span>Uncertain</a></li>
+        <li>
+            <hr class="dropdown-divider" />
+        </li>
+        <li><a class="dropdown-item" id="menu-lowq" href="#"><span id="tick-lowq" class="hiddentick">&#x2713;</span>Low
+                quality data</a></li>
+        <li>
+            <hr class="dropdown-divider" />
+        </li>
+        <li><a class="dropdown-item" id="menu-reauto" href="#"><span>&#9888; </span>Auto calculate</a></li>
+        <li>
+            <hr class="dropdown-divider" />
+        </li>
+        <li><a class="dropdown-item" id="menu-validated" href="#"><span id="tick-validated"
+                    class="hiddentick">&#x2713;</span>Validate</a></li>
+    </ul>
+
+    <!-- DROPDOWN FOR PLATE TEMPLATES-->
+    <div id="template-dropdown" class="dropdown-menu scrollable-dd" aria-labelledby="dLabel">
+        <a class="dropdown-item" href="#">None</a>
+        <a class="dropdown-item" href="#">Template1</a>
+        <a class="dropdown-item" href="#">Template2</a>
+        <a class="dropdown-item" href="#">Template1</a>
+        <a class="dropdown-item" href="#">Template2</a>
+        <a class="dropdown-item" href="#">Template1</a>
+        <a class="dropdown-item" href="#">Template2</a>
+        <a class="dropdown-item" href="#">Template1</a>
+        <a class="dropdown-item" href="#">Template2</a>
+    </div>
+
+    <div class="modal fade " id="manualtmModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">Manual Reference Tm</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        Set Reference Tm manually:
+                    </p>
+                    <input class="small inline" type="number" id="autotm" value="0.00" min="0" max="100" step="0.05"> &deg;C
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" data-bs-dismiss="modal" id="btn_auto_tm">Auto</button>
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal" id="btn_set_tm">Set</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade " id="kdModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">KD calculation</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        Select Template:
+                    </p>
+                    <select class="form-select form-select-sm" id="load_list"></select>
+
+                    
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success disabled" data-bs-dismiss="modal" id="btn_send_kd_data">Calculate</button>
+
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <div class="modal fade " id="kdModal2" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog  modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">KD calculation</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="modalbody-kd2">
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" id="btn_get_kd_report">Get report</button>
+
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade " id="helpModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">Help</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        DSF explorer by Pau Martin @ maciaslab (pau.martin@irbbarcelona.org)
+                    </p>
+                    <p>
+                        This is a simple DSF data explorer. You start by copying your data in folders into the data
+                        folder.
+                        <br>
+                        (TO DO)
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="js/chart.js"></script>
+    <script src="js/jquery-3.6.0.min.js"></script>
+    <script type="text/javascript" src="DataTables/datatables.min.js"></script>
+    <!--script type="text/javascript" src="DataTables-1.10.24/js/dataTables.bootstrap4.js"></script-->
+    <script type="text/javascript" src="DataTables-1.10.24/bs5/dataTables.bootstrap5.min.js"></script>
+    <script>
+        window.onload = function () {
+
+
+
+
+            //Initialize all
+
+
+            //Initialize DataTable
+
+
+
+            //Show grey bars on cells on mouse hover
+            document.getElementById('welltable').addEventListener('mouseover', function (e) {
+                table = document.getElementById('welltable')
+                ycoord = e.target.parentElement.rowIndex;
+                xcoord = e.target.cellIndex;
+                //console.log("My position in table is: " + xcoord + "x " + ycoord + "y");
+                if ((xcoord > 0) & (ycoord > 0)) {
+                    document.getElementById('well-p').textContent = String.fromCharCode(64 + ycoord) +
+                        xcoord
+                    //Toggle border of cell  and enable/disable on graph.
+
+                }
+            }, false);
+
+
+
+            //Responde to table clicks.
+            document.getElementById('welltable').addEventListener('click', function (e) {
+                table = document.getElementById('welltable')
+                ycoord = e.target.parentElement.rowIndex;
+                xcoord = e.target.cellIndex;
+                //console.log("My position in table is: " + xcoord + "x " + ycoord + "y");
+
+                //This is for headers. When clicked, set color to green and use them as references.
+                //Only full columns and rows are allowed as references.
+                //Reference wells will skip wells labeled as bad.
+                //Reference will be averaged from all wells. (Tm and dev.)
+                if ((xcoord == 0) | (ycoord == 0)) {
+                    var cell = table.rows[ycoord].cells[xcoord]
+                    cell.classList.toggle("reference")
+                    rc_name = $(cell).text()
+                    if (xcoord == 0) {
+                        rc_name = "Row " + rc_name
+                    } else {
+                        rc_name = "Col " + rc_name
+                    }
+                    //console.log(rc_name)
+                    if (cell.classList.contains('reference')) {
+                        reference_rc.push(rc_name)
+                        //Add row/column to list
+                    } else { //Remove row/column from list
+                        reference_rc = reference_rc.filter(function (obj) {
+                            return (obj != rc_name)
+                        })
+                    }
+                    update_ref_list()
+                }
+
+                //This is for non header rows and columns -> Show graph for clicked well.
+                if ((xcoord > 0) & (ycoord > 0)) {
+                    //Toggle border of cell  and enable/disable on graph.
+                    var cell = table.rows[ycoord].cells[xcoord]
+                    wellstring = String.fromCharCode(64 + ycoord) + xcoord
+                    //This will be used for color coding of cells.
+                    //cell.classList.toggle("table-primary")
+
+                    
+
+                    
+                    //ALT KEY PRESSED: NEW REFERENCE
+                    if (e.altKey)
+                    {
+                        if (reference_rc.includes(wellstring))
+                        {
+                            //Remove wellstring from array.
+                            reference_rc = reference_rc.filter(function(value, index, arr)
+                                { 
+                                return value != wellstring;
+                                });
+                        }
+                        else
+                        {
+                        reference_rc.push(wellstring)
+                        }
+                        update_ref_list()
+                        //Set or unset new reference cell.
+                    }
+                    else
+                        //NO ALT KEY, STANDARD BEHAVIOUR
+                             {
+                                if (!(cell.classList.contains('td-sel'))) {
+                                    if (e.shiftKey)
+                                        {
+                                            //If shift, add well
+                                            cell.classList.toggle("td-sel")
+                                            add_well(filename, wellstring)
+                                        }
+                                        else
+                                        {
+                                            remove_all_wells(false)
+                                            cell.classList.toggle("td-sel")
+                                            add_well(filename, wellstring)
+                                        }
+                                    
+                                } 
+                                else {
+                                    if (e.shiftKey)
+                                        {
+                                            cell.classList.toggle("td-sel")
+                                            remove_well(filename, wellstring)
+                                        }
+                                    else
+                                        {
+                                            remove_all_wells(false)
+                                            cell.classList.toggle("td-sel")
+                                            add_well(filename, wellstring)
+                                        }
+                                    
+                                }
+                            }
+
+                }
+
+            }, false);
+
+            $('#load_list').change(function (e){
+
+                template_to_load=$("#load_list").children("option:selected").val()
+                //console.log(template_to_load)
+                if (template_to_load !="__MENUITEM__")
+                    {
+                        $('#btn_send_kd_data').removeClass("disabled")
+
+                    }
+                    else
+                    {
+                        $('#btn_send_kd_data').addClass("disabled")
+                    }
+            })
+            $('#threshold').change(
+                function (e) {
+
+                    this.value = parseFloat(this.value).toFixed(2);
+                    tempthreshold = parseFloat(this.value)
+                    auto_categorize()
+
+                }
+            )
+            $('#menuclosebutton').click(
+                function (e) {
+                    hide_right_button_menu()
+                }
+
+            )
+
+
+            $('#btn_send_kd_data').click(
+                function (e) {
+                    //Ask server for Kd data
+                    //get_kd_report()
+
+                    //Open new modal with graphs and get data:
+                    get_kd_data_for_interactive_report()
+                }
+
+            )
+            $('#btn_get_kd_report').click(
+                function (e) {
+                    //Ask server for Kd data
+                    get_kd_report()
+
+
+                }
+
+            )
+            
+
+            $('#kdbutton').click(
+                function (e) {
+                    populate_load_list()
+                }
+
+            )
+
+            $('#welltable').contextmenu(
+                function (e) {
+                    remove_all_highlights()
+                    table = document.getElementById('welltable')
+                    ycoord = e.target.parentElement.rowIndex;
+                    xcoord = e.target.cellIndex;
+
+                    //console.log(xcoord+" "+ycoord)
+                    if ((xcoord != 0) & (ycoord != 0)) {
+                        var cell = table.rows[ycoord].cells[xcoord]
+
+                        var top = e.pageY + 10;
+                        var left = e.pageX + 10;
+                        wellstring = String.fromCharCode(64 + ycoord) + xcoord
+                        menuwell = wellstring
+                        wellflags = get_flags_for_well(wellstring)
+                        $('#tick-neutral').addClass("hiddentick")
+                        $('#tick-uncer').addClass("hiddentick")
+                        $('#tick-stab').addClass("hiddentick")
+                        $('#tick-destab').addClass("hiddentick")
+                        $('#tick-lowq').addClass("hiddentick")
+                        $('#tick-validated').addClass("hiddentick")
+
+                        $('#menu-lowq').removeClass("disabled")
+                        $('#menu-uncer').removeClass("disabled")
+                        $('#menu-neutral').removeClass("disabled")
+                        $('#menu-stab').removeClass("disabled")
+                        $('#menu-destab').removeClass("disabled")
+                        $('#menu-reauto').removeClass("disabled")
+
+                        if (wellflags.includes("Warning")) {
+                            $('#tick-lowq').removeClass("hiddentick")
+                        }
+
+                        if (wellflags.includes("Neutral")) {
+                            $('#tick-neutral').removeClass("hiddentick")
+                        }
+
+                        if (wellflags.includes("Uncertain")) {
+                            $('#tick-uncer').removeClass("hiddentick")
+
+                        }
+                        if (wellflags.includes("Stabilizing")) {
+                            $('#tick-stab').removeClass("hiddentick")
+
+                        }
+                        if (wellflags.includes("Destabilizing")) {
+                            $('#tick-destab').removeClass("hiddentick")
+
+                        }
+                        if (wellflags.includes("Validated")) {
+                            $('#tick-validated').removeClass("hiddentick")
+                            //If validated, disable all other menu items.
+                            $('#menu-lowq').addClass("disabled")
+                            $('#menu-neutral').addClass("disabled")
+                            $('#menu-stab').addClass("disabled")
+                            $('#menu-destab').addClass("disabled")
+                            $('#menu-reauto').addClass("disabled")
+                            $('#menu-uncer').addClass("disabled")
+
+                        }
+
+                        document.getElementById('menu-well-id').textContent = "Well: " + wellstring
+                        $("#context-menu").css({
+                            display: "block",
+                            top: top,
+                            left: left
+                        }).addClass("show");
+                        cell.classList.toggle("td-highlight")
+
+                    }
+                    return false;
+                }
+            )
+
+            $("#btnsetrefs").on("click", function () {
+                //get ref tm from selected wells
+
+                listoftemps=[]
+                wells_in_use.forEach(function (a) {
+                    b=a.split("/")
+                    filename=b.slice(0,b.length-1).join("/")
+                    
+                    wellname=b[b.length-1]
+                    //console.log(filename,wellname)
+                    
+                    t=get_well_data(filename,wellname)[wellname]["tm"]
+                    //console.log(t)
+                    listoftemps.push(t)
+                 })
+
+                manual_ref_tm=getMean(listoftemps);
+                update_ref_list()
+            })
+
+
+            $("#btn_auto_tm").on("click", function () {
+                manual_ref_tm=0;
+                update_ref_list()
+            })
+            $("#btn_set_tm").on("click", function () {
+                mrt=$('#autotm').val()
+                //console.log(mrt)
+                manual_ref_tm=mrt;
+                update_ref_list()
+            })
+
+
+            $("#context-menu a").on("click", function () {
+
+                //Change state for clicked option
+                //console.log($(this))
+                if ($(this).attr('id') == "menu-neutral") {
+                    //This function should not touch Warning flag if not asked to.
+                    toggle_flag_for_well(menuwell, "Neutral")
+                }
+
+                if ($(this).attr('id') == "menu-uncer") {
+                    //This function should not touch Warning flag if not asked to.
+                    toggle_flag_for_well(menuwell, "Uncertain")
+                }
+
+                if ($(this).attr('id') == "menu-stab") {
+                    //This function should not touch Warning flag if not asked to.
+                    toggle_flag_for_well(menuwell, "Stabilizing")
+                }
+
+                if ($(this).attr('id') == "menu-destab") {
+                    //This function should not touch Warning flag if not asked to.
+                    toggle_flag_for_well(menuwell, "Destabilizing")
+                }
+                if ($(this).attr('id') == "menu-lowq") {
+                    //This function should not touch Warning flag if not asked to.
+                    toggle_flag_for_well(menuwell, "Warning")
+                }
+
+
+                if ($(this).attr('id') == "menu-validated") {
+                    //This function should not touch Warning flag if not asked to.
+                    toggle_flag_for_well(menuwell, "Validated")
+
+
+
+                }
+                if ($(this).attr('id') == "menu-reauto") {
+                    //True forces auto-categorizing, bypassing server.
+                    //This will also delete that data from server if it exists.
+                    auto_categorize_well(menuwell, true)
+                    refresh_cat_table()
+
+
+                }
+
+                //And close right menu.
+                hide_right_button_menu()
+
+            });
+
+
+
+            document.getElementById('zoomButton').addEventListener('click', function (e) {
+                toggleZoom()
+            }, false)
+
+            document.getElementById('showrefsButton').addEventListener('click', function (e) {
+                toggleShowrefs()
+            }, false)
+
+            document.getElementById('reportButton').addEventListener('click', function (e) {
+                getReport()
+            }, false)
+
+            document.getElementById('normalizeButton').addEventListener('click', function (e) {
+                toggleNorm()
+            }, false)
+        }
+
+        function get_kd_data_for_molecule(molecule){
+            data_for_server = {}
+            data_for_server["filename"]=filename
+            template_to_load=$("#load_list").children("option:selected").val()
+            data_for_server["template"]=template_to_load
+            data_for_server["references"] = reference_rc
+            data_for_server["manual_ref"] = manual_ref_tm
+            data_for_server["molecule"] = molecule
+            jsonforserver = JSON.stringify(data_for_server)
+            url = "/get_kd_data_molecule/"
+            var request = new XMLHttpRequest();
+            request.open('POST', url, false); // `false` makes the request synchronous
+            request.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+            request.send(jsonforserver);
+           
+            kditems={}
+            if (request.status === 200) {
+                console.log("ok");
+                //console.log(request.response)
+                kditems=JSON.parse(request.response)
+            }
+            return kditems
+        }
+
+        function get_kd_data_for_interactive_report() {
+            data_for_server = {}
+            kd_charts={}
+            data_for_server["filename"]=filename
+            template_to_load=$("#load_list").children("option:selected").val()
+            data_for_server["template"]=template_to_load
+            data_for_server["references"] = reference_rc
+            data_for_server["manual_ref"] = manual_ref_tm
+            jsonforserver = JSON.stringify(data_for_server)
+            url = "/get_kd_data/"
+            var request = new XMLHttpRequest();
+
+
+
+
+            request.open('POST', url, false); // `false` makes the request synchronous
+            request.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+            request.send(jsonforserver);
+           
+            kditems={}
+            if (request.status === 200) {
+                console.log("ok");
+                //console.log(request.response)
+                kditems=JSON.parse(request.response)
+            }
+            //Now items contains the data.
+            //console.log(items)
+
+            //add divs to modalbody-kd2.
+            $("#modalbody-kd2").empty()
+            Object.keys(kditems).forEach((molecule) => 
+            {
+
+                //console.log(molecule)
+                $moldiv=$('<div class="card molcard"></div>')
+                $molspan=$("<span><h3>Molecule "+molecule+'</h3><h5 class="smaller">'+filename+"</h5></span>")
+                $moldiv2=$('<div class="row"></div>')
+                $moldiv.append($molspan)
+                $moldiv.append($moldiv2)
+                $moldivL=$('<div class="col-6"></div>')
+                $moldivLT=$('<table class="kd-button-table"></table>')
+                $moldivL.append($moldivLT)
+                $moldivR=$('<div class="col-6"></div>')
+                $moldiv2.append($moldivL,$moldivR)
+                $("#modalbody-kd2").append($moldiv)
+                //append table of wells
+                c=0
+                num_cols=4
+                $tablerow=$('<tr></tr>')
+
+                Object.keys(kditems[molecule]["wells"]).forEach((well) => 
+                            {
+                                w=well+" - Tm: "+kditems[molecule]["wells"][well]['tm'].toFixed(2)+" K"
+                                
+
+
+                                enabled=kditems[molecule]["wells"][well]['enabled']
+                                myclass="td-well-disabled"
+                                if (enabled==1)
+                                    {
+                                        myclass="td-well-enabled"
+                                    }
+                                m=c % num_cols
+                                if (m==0)
+                                    {
+                                        $moldivLT.append($tablerow)
+                                        $tablerow=$('<tr></tr>')
+                                    }
+                                $cell=$('<td id="td'+ well +'" class="'+myclass+'" molecule="'+molecule+'" well="'+well+'">'+w+'</td>')
+                                $tablerow.append($cell)
+                                c=c+1
+                                //console.log(well)
+                            })
+                            if ($tablerow.html()!="<tr></tr>")
+                                {
+                                    $moldivLT.append($tablerow)
+                                }
+                
+                //Calculate Maxdtm/50uMdtm
+
+                
+                                //Append graph
+                mykd=kditems[molecule]['fkd']
+                //console.log ("uf:")
+                if (kditems[molecule]['unfinished_curve']>0)
+                                {
+                                    mykd="(!) >"+mykd
+                                }
+                $dataspan=$('<span id="span_mol_'+molecule+'">'+Kdtable(mykd,kditems[molecule]['tm0'],kditems[molecule]['dH0'],kditems[molecule]['R2'])+'</span>')
+                $moldivL.append($dataspan)
+                $resetbutton=$('<button type="button" class="resetbutton btn btn-secondary" id="resetmol'+molecule+'" molecule="'+molecule+'">Reset</button>')
+                $moldivL.append($resetbutton)
+                //Append info: Kd, R2,...
+
+                //Add canvas
+                canvasid="canvas-"+molecule
+                $canvas=$('<canvas id="'+canvasid+'"></canvas>')
+                $moldivR.append($canvas)
+
+                const chartconfig_ = {
+                type: 'line',
+                data: {},
+                options: {
+                    onClick: chartClicked,
+                    animation:{duration:0,},
+                    responsive: true,
+                    elements: {
+                        point: {
+                            radius: 2
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display:false,
+                            
+                                },
+                        tooltip:{
+                                callbacks:{
+                                    label:label_for_kd_points
+                                    }
+                                }
+                            },
+                    scales: {
+                        x: {
+                            type: 'logarithmic'
+                        },
+                        y: {
+                            type: 'linear'
+                        }
+                    }
+
+
+
+                }
+            };
+
+                var myChart_ = new Chart(
+                document.getElementById(canvasid),
+                chartconfig_
+                );
+                
+                kd_charts[molecule]=myChart_
+                            //Bind click to plot poits and do:
+                                //updatePlotForMol(molecule,kditems)
+                                //updateTableKdMol(molecule,kditems)
+                
+                
+                updatePlotForMol(molecule,kditems)
+                updateTableKdMol(molecule,kditems)
+                
+
+                
+            })
+            
+
+            //Bind click for each cell to enable/disable wells, store on server and refresh plot and KD calculation (needs coding getting single molecule data at server).
+
+            $('.resetbutton').click(
+                function(e)
+                    {
+                        molreset=$(this).attr("molecule")
+                        $('.kd-button-table td').each(function (i)
+                            {
+                        //console.log(this)
+                        w=($(this).attr("well"))
+                        m=($(this).attr("molecule"))
+                        if (m==molreset)
+                            {
+                                if ($(this).hasClass("td-well-disabled"))
+                                    {
+                                        console.log(this)
+                                        toggle_flag_for_well(w,"Warning")
+                                        $(this).removeClass("td-well-disabled")
+                                        $(this).addClass("td-well-enabled")
+                                    }
+                            }
+                        })
+                        d=get_kd_data_for_molecule(molreset)
+                        updatePlotForMol(molreset,d)
+                    })
+
+            $('.kd-button-table td').click(
+                function(e)
+                    {
+                        well=$(this).attr("well")
+                        mol=$(this).attr("molecule")
+
+                        if ($(this).hasClass("td-well-enabled"))
+                            {
+                                //Disable
+                                $(this).removeClass("td-well-enabled")
+                                $(this).addClass("td-well-disabled")
+                                //Send category to server
+                                toggle_flag_for_well(well,"Warning")
+                                //REfresh data for molecule
+
+                            }
+                        else
+                            {
+                                //Enable
+                                $(this).removeClass("td-well-disabled")
+                                $(this).addClass("td-well-enabled")
+                                //Send category to server
+                                toggle_flag_for_well(well,"Warning")
+                                //REfresh data for molecule
+                            }
+                    
+                    //Get new data from server:
+                    d=get_kd_data_for_molecule(mol)
+                    updatePlotForMol(mol,d)
+
+                    }
+
+            )
+
+
+
+            $("#kdModal2").modal('show')
+            }
+
+            function updateTableKdMol(mol,data)
+                {
+                    $('.kd-button-table td').each(function (i)
+                    {
+                        //console.log(this)
+                        w=($(this).attr("well"))
+                        m=($(this).attr("molecule"))
+                        if (m==mol)
+                            {
+                                $(this).removeClass("td-well-enabled")
+                                $(this).removeClass("td-well-disabled")
+                                if (data[m]["wells"][w]['enabled']==1)
+                                    {
+                                        $(this).addClass("td-well-enabled")
+                                    }
+                                else
+                                     {
+                                        $(this).addClass("td-well-disabled")
+                                    }
+                            }
+                        
+                        //console.log("*")
+                    })
+                }
+            function updatePlotForMol(mol,data)
+            {
+                    d=data
+                    //console.log(d)
+
+                    kd_charts[mol].data.datasets=[]
+                    dataset_points = getDatasetPointsForMolecule(d[mol]['datapoints'])
+
+                    dataset_fitting = {
+                            
+                            data: d[mol]['fittingcurve'],
+                            borderColor: 'green',
+                            borderWidth: 1,
+                            type:'line',
+                            elements: {
+                                point: {
+                                    radius: 0
+                                }
+                            },
+                        
+                    }
+                    kd_charts[mol].data.datasets.push(dataset_points)
+                    kd_charts[mol].data.datasets.push(dataset_fitting)
+                    kd_charts[mol].update()
+
+                    //Update data line
+                    mykd=d[mol]['fkd']
+                    //console.log ("uf:")
+                    if (d[mol]['unfinished_curve']>0)
+                                    {
+                                        mykd="(!) >"+mykd
+                                    }
+                    $("#span_mol_"+mol).html(Kdtable(mykd,d[mol]['tm0'],d[mol]['dH0'],d[mol]['R2']))
+            }
+            function getDatasetPointsForMolecule(datapoints)
+            {
+
+                            bg_colors=[]
+                            border_colors=[]
+                            enabled_bg_color='#2AFA66'
+                            enabled_border_color='#2AFA66'
+                            disabled_bg_color='#FCB64D'
+                            disabled_border_color='#FCB64D'
+                            //console.log(kditems[molecule]['datapoints'])
+                            for (i = 0; i < datapoints.length; i++) {
+                                //console.log(datapoints[i])
+                                if (datapoints[i]['enabled'] ==1) {
+                                    bg_colors.push(enabled_bg_color);
+                                    border_colors.push(enabled_border_color);
+                                } else {
+                                    bg_colors.push(disabled_bg_color);
+                                    border_colors.push(disabled_border_color);
+                                }
+                            }
+
+
+                            bordercolor=[]
+                            bgcolor=[]
+                            dataset_points = {
+                                
+                                data: datapoints,
+                                pointBorderColor: border_colors,
+                                pointBackgroundColor: bg_colors,
+                                borderWidth: 1,
+                                type:'scatter'
+                            
+                        }
+                return dataset_points
+            }
+
+            function Kdtable(kd,tm0,dH0,R2)
+                {
+                    a=""
+                    kdclass=""
+                    console.log("*"+kd.substr(0,2)+"*")
+                    if (kd.substr(0,3)=="(!)")
+                        {kdclass="redKdlabel"
+                        kd=kd.substr(3)
+                        }
+                    a=a+'<table class="kdtable"><tr>'
+                    a=a+'<td class="'+kdclass+'"">K<sub>D</sub> : '+kd+' &#956;M</td>'
+                    a=a+'<td>Tm<sub>0</sub>: '+tm0+' </td>'
+                    a=a+'</tr><tr>'
+                    a=a+'<td>&#916;H<sub>0</sub>: '+dH0+'</td>'
+                    a=a+'<td>R<sup>2</sup>: '+R2.toFixed(3)+'</td>'
+                    a=a+'</tr>'
+                    a=a+'</table>'
+                    return a//'<span>KD :'+kd+' uM ; Tm0:'+tm0+' ; DH0: '+dH0+'; R2:'+R2.toFixed(3)+' </span>'
+                }
+        function label_for_kd_points(context)
+            {
+                //console.log(context)
+                l=context['raw']['label']
+                return(l)
+            }
+        function get_kd_report() {
+            $('#btn_get_kd_report').addClass('disabled')
+            $('#btn_get_kd_report').text('Please wait...')
+            data_for_server = {}
+            data_for_server["filename"]=filename
+            template_to_load=$("#load_list").children("option:selected").val()
+            data_for_server["template"]=template_to_load
+            data_for_server["references"] = reference_rc
+            data_for_server["manual_ref"] = manual_ref_tm
+            jsonforserver = JSON.stringify(data_for_server)
+            url = "/get_kd_report/"
+            var request = new XMLHttpRequest();
+
+
+            request.open('POST', url);
+            request.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+            request.responseType = 'blob';
+
+            request.onload = function (e) {
+
+
+                var myblob = this.response;
+                var blobUrl = URL.createObjectURL(myblob);
+                var da = document.createElement('a');
+                da.href = blobUrl;
+                da.download = filename+"_KDREPORT.docx";
+                da.dispatchEvent(new MouseEvent('click'));
+                da.remove()
+                $('#btn_get_kd_report').removeClass('disabled')
+                $('#btn_get_kd_report').text('Get report')
+                //console.log(request.response)
+            }
+            request.send(jsonforserver);
+
+            }
+
+        function chartClicked (evt, activeElements) {
+        console.log(evt, activeElements)
+        activeElements.forEach((element) =>
+            {
+                el=element["element"]['$context']['raw']
+                well=el["well"]
+                mol=el["molecule"]
+                console.log(well)
+                if (typeof well !== 'undefined')
+                    {
+                        //Toglle warning for well, and refresh.
+                        toggle_flag_for_well(well,"Warning")
+                        d=get_kd_data_for_molecule(mol)
+                        updatePlotForMol(mol,d)
+                        updateTableKdMol(mol,d)
+
+                    }
+            })
+        }
+        function getReport() {
+            data_for_server = {}
+            $('#reportButton').addClass("disabled")
+            $('#reportButton').addClass("btn-danger")
+            $('#reportButton').removeClass("btn-primary")
+            $('#reportButton').text("Please wait...")
+            //Get all checked filenames 
+            reportfilenames = []
+            $('#plateslist li ul li input').each(function (i) {
+                //console.log($(this))
+                //$(cell).html(tickchar)
+                if (this.checked) {
+                    reportfilenames.push(this.getAttribute('value'))
+                }
+                //console.log(this.checked, this.getAttribute('value'))
+
+            })
+            //console.log(reportfilenames)
+            //if empty, report for active filename
+            if (reportfilenames.length == 0) {
+                reportfilenames = [filename]
+            }
+            data_for_server["filenames"] = reportfilenames
+            data_for_server["threshold"] = tempthreshold
+            data_for_server["references"] = reference_rc
+            data_for_server["manual_ref"] = manual_ref_tm
+            //Also send selected references and threshold 
+            jsonforserver = JSON.stringify(data_for_server)
+
+            url = "/get_report/"
+            var request = new XMLHttpRequest();
+
+
+            request.open('POST', url);
+            request.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+            request.responseType = 'blob';
+
+            request.onload = function (e) {
+
+
+                var myblob = this.response;
+                var blobUrl = URL.createObjectURL(myblob);
+                var da = document.createElement('a');
+                da.href = blobUrl;
+                da.download = "selection.xlsx";
+                if (reportfilenames.length==1)
+                {
+                    da.download=reportfilenames[0]+"-report.xlsx"
+                }
+
+                da.dispatchEvent(new MouseEvent('click'));
+                da.remove()
+                $('#reportButton').removeClass("disabled")
+                $('#reportButton').removeClass("btn-danger")
+                $('#reportButton').addClass("btn-primary")
+                $('#reportButton').text("Report")
+                //console.log(request.response)
+            }
+            request.send(jsonforserver);
+
+        }
+
+        function toggle_flag_for_well(well, flag) {
+
+            //Now the validate flag and the warning flag are incompatible.
+
+            value = categories_for_plate[well]
+            if (typeof value == 'undefined') {
+                value = ""
+            }
+            splvalue = value.split(" ")
+            //console.log(splvalue)
+            if (splvalue.includes(flag)) {
+                //Remove flag
+                splvalue = splvalue.filter(function (e) {
+                    return e != flag
+                })
+            } else {
+                //Remove incompatible combinations.
+                if (flag == "Neutral") {
+                    splvalue = splvalue.filter(function (e) {
+                        return e != "Stabilizing"
+                    })
+                    splvalue = splvalue.filter(function (e) {
+                        return e != "Destabilizing"
+                    })
+                    splvalue = splvalue.filter(function (e) {
+                        return e != "Uncertain"
+                    })
+                }
+                if (flag == "Stabilizing") {
+                    splvalue = splvalue.filter(function (e) {
+                        return e != "Neutral"
+                    })
+                    splvalue = splvalue.filter(function (e) {
+                        return e != "Destabilizing"
+                    })
+                    splvalue = splvalue.filter(function (e) {
+                        return e != "Uncertain"
+                    })
+                }
+                if (flag == "Destabilizing") {
+                    splvalue = splvalue.filter(function (e) {
+                        return e != "Stabilizing"
+                    })
+                    splvalue = splvalue.filter(function (e) {
+                        return e != "Neutral"
+                    })
+                    splvalue = splvalue.filter(function (e) {
+                        return e != "Uncertain"
+                    })
+                }
+                if (flag == "Uncertain") {
+                    splvalue = splvalue.filter(function (e) {
+                        return e != "Stabilizing"
+                    })
+                    splvalue = splvalue.filter(function (e) {
+                        return e != "Neutral"
+                    })
+                    splvalue = splvalue.filter(function (e) {
+                        return e != "Destabilizing"
+                    })
+                }
+                //Warning and Validated are exclusive.
+                if (flag == "Validated") {
+                    splvalue = splvalue.filter(function (e) {
+                        return e != "Warning"
+                    })
+                }
+                if (flag == "Warning") {
+                    splvalue = splvalue.filter(function (e) {
+                        return e != "Validated"
+                    })
+                }
+                
+                splvalue.push(flag)
+                //Add flag
+            }
+            //console.log(splvalue)
+            value = splvalue.join(" ")
+
+
+
+
+            //Inject new value into table
+            categories_for_plate[well] = value
+
+            //If we just validated a well, send values to server.
+            if (splvalue.includes("Validated")) {
+                
+                //console.log("Sending bc Validated")
+                send_categories_to_server(well)
+            }
+            if (splvalue.includes("Warning")) {
+                
+                //console.log("Sending bc Warning")
+                send_categories_to_server(well)
+            }
+            //If we just unvalidated a well, apply auto-values, refresh_cat_table and clear server values.
+            if (!(splvalue.includes("Validated")) & flag == "Validated") {
+                auto_categorize_well(well, true)
+                send_categories_to_server(well)
+            }
+            //If we just unwarninged a well, apply auto-values, refresh_cat_table and clear server values.
+            if (!(splvalue.includes("Warning")) & flag == "Warning") {
+                //console.log("Removed warning!")
+                auto_categorize_well(well, true)
+                send_categories_to_server(well)
+            }
+
+            //Calculate tm again if reference list has changed.
+            update_ref_tm()
+            get_categories_from_server(filename)
+            refresh_cat_table();
+
+        }
+
+        function get_flags_for_well(well) {
+            //coords=wellname_to_coords(well)
+            //cell=$('#welltable')[0].rows[coords[0]].cells[coords[1]]
+            value = categories_for_plate[well]
+            if (typeof value == 'undefined') {
+                value = ""
+            }
+
+            splvalue = value.split(" ")
+            return splvalue
+
+
+        }
+
+        function send_categories_to_server(well) {
+            //send categories for wells from server. Will be done by user using the categories manager.
+            //This will happen when right-clicking and validating.
+            //We will nedd the well and the filename.
+            //console.log("Sending to server")
+            //console.log(categories_for_plate)
+            //console.log(categories_for_plate[well])
+            categories = categories_for_plate[well].split(" ");
+            //console.log(categories)
+            url = "/send_categories/" + filename + "&" + well + "&" + categories.join("$")
+            var request = new XMLHttpRequest();
+
+
+            request.open('GET', url, false); // `false` makes the request synchronous
+            request.send(null);
+
+            if (request.status === 200) {
+                console.log("ok");
+                //console.log(request.response)
+            }
+
+
+
+        }
+
+
+        function refresh_cat_table() {
+            //Reads categories_for_plate
+            //and sets colors to plate table.
+
+            //Also fills the datatable.
+            welldatatable.rows().remove()
+            datatablerows=[]
+            Object.keys(categories_for_plate).forEach((well) => {
+
+
+                //console.log(tms_for_plate[well])
+                coords = wellname_to_coords(well)
+                value = categories_for_plate[well]
+                splvalue = value.split(" ")
+                //Data table.
+                newrow = {}
+                teffect = ""
+                twell = well
+
+                if (typeof tms_for_plate[twell]=='undefined')
+                    {return}
+                if (typeof tms_for_plate[twell]['tm']=='undefined')
+                    {return}
+
+                ttm = (tms_for_plate[twell]['tm']).toFixed(2)
+                tdtm = (ttm - ref_average_tm).toFixed(2)
+                twarning = "0"
+                tvalidated="0"
+                if (splvalue.includes("Warning")) {
+                    twarning = "1"
+                }
+
+                tvalidated = ""
+                if (splvalue.includes("Validated")) {
+                    tvalidated = "1"
+                }
+
+
+                if (splvalue.includes("Neutral")) {
+                    teffect = "Neutral"
+                }
+                if (splvalue.includes("Stabilizing")) {
+                    teffect = "Stabilizing"
+                }
+                if (splvalue.includes("Destabilizing")) {
+                    teffect = "Destabilizing"
+                }
+                if (splvalue.includes("Uncertain")) {
+                    teffect = "Uncertain"
+                }
+
+                newrow = {
+                    'well': twell,
+                    'tm': ttm,
+                    'dtm': tdtm,
+                    'effect': teffect,
+                    'warning': twarning,
+                    'validated': tvalidated
+                }
+
+                //Filter "neutrals and references without warning" ->filt=1
+                //Always filter neutrals and references->filt=2
+                filt = 2
+
+
+                if (
+                    (splvalue.length > 0) &
+                    !(
+                        (splvalue.length <= filt) &
+                        (
+                            splvalue.includes("Neutral") |
+                            splvalue.includes("Reference")
+                        )
+                    )
+                ) {
+                    //console.log(splvalue)
+                    datatablerows.push(newrow)
+                    //welldatatable.row.add(newrow)
+                }
+
+
+
+                //Plate table
+                cell = $('#welltable')[0].rows[coords[0]].cells[coords[1]]
+
+                //Add ticks to all cells.
+
+
+                $(cell).removeClass("td-stabilizing td-reference td-destabilizing td-warning td-uncertain")
+
+                if (splvalue.includes("Stabilizing")) {
+                    $(cell).addClass("td-stabilizing")
+                }
+                if (splvalue.includes("Uncertain")) {
+                    $(cell).addClass("td-uncertain")
+                }
+                if (splvalue.includes("Destabilizing")) {
+                    $(cell).addClass("td-destabilizing")
+                }
+                if (splvalue.includes("Reference")) {
+                    $(cell).addClass("td-reference")
+                }
+                if (splvalue.includes("Warning")) {
+                    $(cell).addClass("td-warning")
+                }
+
+                if (splvalue.includes("Validated")) {
+                    $(cell).addClass("td-validated")
+                } else {
+                    $(cell).removeClass("td-validated")
+                }
+
+
+
+            })
+
+            //iterate datatablerows and add to datatable
+            datatablerows.sort(function(x,y)
+            {
+                //Sort by validated
+                a=sort_by_warning(x,y)
+                if (a!=0)
+                {
+                return a
+                }
+                else
+                    {
+                        //sort by warning
+                        b=sort_by_validated(x,y)
+                        if (b!=0)
+                            {return b}
+                        else
+                            {
+                                return sort_by_tm(x,y)
+                            }
+                    }
+                //return sort_by_tm(x,y)
+            }
+            )
+            
+            welldatatable.rows.add(datatablerows)
+            welldatatable.draw()
+            //ADd click responder
+            //datatable click on td:
+            $('#datatable tbody tr td').click(datatable_click)
+
+            //datatable click on validate.
+            $('.dt-valid').change(dt_validate_click)
+
+            //datatable click on warning.
+            $('.dt-warn').change(dt_warning_click)
+
+            //datatable click on effect.
+            $('.dt-eff').change(dt_eff_click)
+            //console.log(welldatatable.data())
+
+
+
+
+        }
+
+
+        function populate_load_list()
+        {
+            //connect to server and get template names and populate load list.
+            $('#btn_send_kd_data').addClass("disabled")
+            var items=["test1","test2"]
+            selector=$("#load_list")
+            selector.empty()
+            selector.append('<option value="__MENUITEM__">'+"Select template:"+"</option>")
+            //"Select template:" has value "__MENUITEM__"
+            var request = new XMLHttpRequest();
+
+
+            request.open('GET', '/kdtemplatelist/', false); // `false` makes the request synchronous
+            request.send(null);
+
+            if (request.status === 200) {
+                console.log("ok");
+                //console.log(request.response)
+                items=JSON.parse(request.response)
+            }
+            //console.log(items)
+            items.forEach(function (item,index)
+                {
+                    selector.append('<option value="'+item+'">'+item+"</option>")
+                    
+                })
+            
+        }
+
+
+
+        function sort_by_validated(x,y)
+        {
+                if ( Math.abs(x['validated'])> Math.abs(y['validated']) )
+                    {
+                        return 1
+                    }
+                if ( Math.abs(x['validated'])< Math.abs(y['validated']) )
+                    {
+                        return -1
+                    }
+                return 0
+            }
+
+            function sort_by_warning(x,y)
+        {
+                if ( Math.abs(x['warning'])> Math.abs(y['warning']) )
+                    {
+                        return 1
+                    }
+                if ( Math.abs(x['warning'])< Math.abs(y['warning']) )
+                    {
+                        return -1
+                    }
+                return 0
+            }
+
+
+        function sort_by_tm(x,y)
+        {
+                if ( Math.abs(x['dtm'])> Math.abs(y['dtm']) )
+                    {
+                        return -1
+                    }
+                if ( Math.abs(x['dtm'])< Math.abs(y['dtm']) )
+                    {
+                        return 1
+                    }
+                return 0
+            }
+        function get_categories_from_server() {
+            //After reading a file, get categories from server and store in servercategories
+            response = []
+            var request = new XMLHttpRequest();
+
+
+            request.open('GET', '/get_categories/' + filename, false); // `false` makes the request synchronous
+            request.send(null);
+
+            if (request.status === 200) {
+                console.log("ok");
+                //console.log(request.response)
+                response = JSON.parse(request.response)
+            }
+            //console.log(response)
+            //If server returns [], then continue.
+            servercategories = response
+
+
+        }
+
+        function auto_categorize_well(mywell, forced = false) {
+
+            //FORCED: Ignore server values and set using tm criteria.
+            refwells = get_reference_well_list()
+            //console.log(refwells)
+            /*            if (typeof categories_for_plate[mywell] != 'undefined')
+                        {
+                                if (categories_for_plate[mywell].includes("Validated"))
+                                {
+                                    
+                                    return
+                                }
+
+                        } */
+            //If it is validated, then just return.
+
+            //First, ask from server.
+            //Unless it is forced.
+            if (!forced) {
+                //Get from server response.
+                if (typeof servercategories[mywell] != 'undefined') {
+                    //if server data is validated, then apply server values:
+                    if (  (servercategories[mywell].includes("Validated")) | (servercategories[mywell].includes("Warning")) ) {
+                        categories_for_plate[mywell] = servercategories[mywell].join(" ")
+                        return
+                    }
+
+                }
+
+
+            } else {
+                //Tell server to drop.
+                categories_for_plate[mywell] = ""
+                send_categories_to_server(mywell)
+                get_categories_from_server()
+            }
+
+            //If it is not on server, use auto:
+
+            //if (refwells.length == 0) {
+            if (ref_average_tm == 0) {
+                //console.log("No references")
+                categories_for_plate[mywell] = "Neutral"
+                return
+            }
+
+            wname = mywell
+            //if (!(refwells.includes(wname)))
+            {
+                if (wname.substring(0, 1) != "d") {
+
+                    newtm = parseFloat(tms_for_plate[wname]["tm"])
+                    //console.log(well,newtm,ref_average_tm,ref_stddev_tm)
+                    category = "Neutral"
+                    if (newtm > (ref_average_tm + tempthreshold)) {
+                        category = "Stabilizing"
+                    }
+                    if (newtm < (ref_average_tm - tempthreshold)) {
+                        category = "Destabilizing"
+                    }
+                    if (refwells.includes(wname)) {
+                        category = "Reference"
+                    }
+                    if (parseInt(tms_for_plate[wname]["warnings"], 10) > 0) {
+                        category = category + " Warning"
+                    }
+                    if (newtm==0)
+                    {
+                        //No data
+                        category="Neutral"
+                    }
+                    //console.log(well,newtm,ref_average_tm,ref_stddev_tm,category)
+                    categories_for_plate[wname] = category
+                    //console.log(categories_for_plate)
+                }
+            }
+
+
+
+            //console.log(wname)
+
+
+
+        }
+
+        function auto_categorize() {
+            //Will auto-set categories for each well
+            //Compared with reference rows and columns. 
+
+            //reference tm:
+            //ref_average_tm
+            //ref_stddev_tm=
+            //To get coords for table:
+            //wellname_to_coords("A17")
+
+
+
+            //where to store categories
+            //categories_for_plate
+
+
+
+            refwells = get_reference_well_list()
+            //console.log(refwells)
+            if (refwells.length == 0) {
+
+                //console.log("No references")
+                //return
+            }
+            Object.keys(tms_for_plate).forEach((well) => {
+                auto_categorize_well(well)
+            })
+
+            //After auto categories, get overrides from server (stored previously by user)
+            //get_categories_from_server()
+            //This is done at each well.
+
+            //and refresh the plate with the categories
+            //console.log(categories_for_plate)
+            refresh_cat_table()
+
+        }
+
+        function addClassToDatatableRow(row, data) {
+            //Adds classes to datatable rows in function of values
+
+            effect = data['effect']
+            valid = data['validated']
+            if (valid == "1") {
+
+            }
+            switch (effect) {
+                case "Stabilizing":
+                    $(row).addClass("td-stabilizing")
+                    break
+                case "Destabilizing":
+                    $(row).addClass("td-destabilizing")
+                    break
+                case "Uncertain":
+                    $(row).addClass("td-uncertain")
+                    break
+                default:
+                    break
+
+            }
+
+            //console.log(effect)
+
+        }
+
+        function hide_right_button_menu() {
+            $("#context-menu").removeClass("show").hide();
+            remove_all_highlights()
+            menuwell = ""
+        }
+
+        function load_plate() {
+            //"filename" is the active plate.
+            //Fills tms_for_plate from server.
+            //It will eventually contain tms for each well, 
+            //and User categorization (non-auto)
+            //Data quality will be stimated on server, though.
+            // 
+            //Hide right button menu.
+
+            
+            hide_right_button_menu()
+            tms_for_plate = {}
+            var request = new XMLHttpRequest();
+
+            //filename="EUOS/EUOS P30-12 231120.txt"
+            request.open('GET', '/tm/' + filename, false); // `false` makes the request synchronous
+            request.send(null);
+
+            if (request.status === 200) {
+                console.log("ok");
+                //console.log(request.response)
+                
+                tms_for_plate = JSON.parse(request.response)
+                //console.log(tms_for_plate)
+            }
+            fileformat=tms_for_plate["format"]
+            $("#formatp").text(fileformat)
+            get_categories_from_server()
+            update_ref_list()
+            
+            auto_categorize()
+            document.body.style.cursor='default';
+
+
+        }
+
+        function update_ref_list() {
+
+            //First, if temperature is set to manual, remove all selected cols and rows.
+            if (manual_ref_tm!=0)
+                {
+                    reference_rc=[]
+                }
+
+            reflistspan = $("#referencelist")
+            refstr = ""
+            for (i = 0; i < reference_rc.length; i++) {
+                refstr = refstr + reference_rc[i]
+                if (i != (reference_rc.length) - 1) {
+                    refstr = refstr + " ,"
+                }
+            }
+            reflistspan.html(refstr)
+            //Remove all Tm curves from Graph2
+
+
+            //console.log(ref_average_tm)
+
+
+
+
+            update_ref_tm()
+            auto_categorize()
+            //If we have references, add a third dataset with Tm, dashed.
+            tmmaxv = 1.0
+            //If filetype is .xlsx, then tmmaxv=100
+            if (filename.substr(-4, 4) == "xlsx") {
+                tmmaxv = 100
+            }
+
+            norm = 1
+            if ((document.getElementById('normalizeButton').checked)) {
+                norm = tmmaxv
+            }
+            tmdata = [{
+                    'x': ref_average_tm,
+                    'y': 0
+                },
+                {
+                    'x': ref_average_tm,
+                    'y': tmmaxv / norm
+                }
+            ]
+
+
+
+
+            dsTm = {
+                label: "Tm",
+                filename: "none",
+                well: "Tm",
+                maxv: tmmaxv,
+                minv: 0,
+                filenamewell: "n&n",
+                data: tmdata,
+                borderDash: [5, 5],
+                datasetStrokeStyle: "dashed",
+                borderColor: reference_color,
+                borderWidth: 2,
+                barThickness: 1,
+                type: 'line',
+                //animation:false,
+
+            }
+
+            if (myChart2) {
+                remove_well("n", "n")
+                if (ref_average_tm>0)
+                {
+                    myChart2.data.datasets.push(dsTm)
+                }
+                
+                myChart2.update()
+            }
+        }
+
+        function getStandardDeviation(array) {
+            const n = array.length
+            const mean = array.reduce((a, b) => a + b) / n
+            return Math.sqrt(array.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n)
+        }
+
+        function getMean(array) {
+            const n = array.length
+            return array.reduce((a, b) => a + b) / n
+
+        }
+
+        function onlyUnique(value, index, self) {
+        //Filter function to remove duplicates.
+        //https://stackoverflow.com/questions/1960473/get-all-unique-values-in-a-javascript-array-remove-duplicates
+         return self.indexOf(value) === index;
+        }
+
+        function get_reference_well_list() {
+            mywells = []
+            reference_rc.forEach(
+                (rc) => {
+                    //console.log(rc)
+                    r = rc.split(" ")
+                    if (r[0] == "Col") {
+                        //Columns
+                        //Remove leading 0
+                        number = parseInt(r[1], 10);
+                        //console.log ("Col "+ number)
+                        //Now iterate tm object.
+                        //console.log(tms_for_plate)
+                        Object.keys(tms_for_plate).forEach((well) => {
+                            wname = well
+                            if (wname.substring(0, 1) != "d") {
+
+                                if (wname.substring(1) == number) {
+                                    //console.log(wname)
+
+                                    mywells.push(wname)
+                                }
+                            }
+
+                            //console.log(wname)
+                        })
+                    } else if (r[0] == "Row"){
+                        //Rows. This is a letter.
+                        Object.keys(tms_for_plate).forEach((well) => {
+                            wname = well
+                            if (wname.substring(0, 1) != "d") {
+
+                                if (wname.substring(0, 1) == r[1]) {
+                                    //console.log(wname)
+
+                                    mywells.push(wname)
+                                }
+                            }
+
+                            //console.log(wname)
+                        })
+                    }
+                    else
+                    {
+                        //No row or col, then it is a cell.
+                        mywells.push(rc)
+                    }
+                }
+
+            )
+
+            //Return reference wells, only unique values.
+            return mywells.filter(onlyUnique);
+        }
+
+        function update_ref_tm() {
+            
+
+            //First, get all Tms data from selected rows and or columns:
+            mytms = []
+            
+            
+            referencewells=get_reference_well_list()
+            referencewells.forEach( (refwell) => {
+                    newtm = tms_for_plate[refwell]["tm"]
+                    w=false
+                    if (refwell in servercategories)
+                        {
+                            if (servercategories[refwell].includes("Warning"))
+                                {w=true}
+                        }
+                        
+                    //console.log(refwell+" "+tms_for_plate[refwell]["tm"]+" "+w)
+                    if (!w)
+
+                        {
+                            if (newtm>0)
+                            {
+                                mytms.push(newtm)
+                            }
+                            //console.log(refwell,newtm)
+                            
+                        }
+                        else
+                        {
+                            //console.log("skipping "+refwell)
+                        }
+                }
+            )
+
+/*             reference_rc.forEach(
+                (rc) => {
+                    //console.log(rc)
+                    r = rc.split(" ")
+                    if (r[0] == "Col") {
+                        //Columns
+                        //Remove leading 0
+                        number = parseInt(r[1], 10);
+                        //console.log ("Col "+ number)
+                        //Now iterate tm object.
+                        //console.log(tms_for_plate)
+                        Object.keys(tms_for_plate).forEach((well) => {
+                            wname = well
+                            if (wname.substring(0, 1) != "d") {
+
+                                if (wname.substring(1) == number) {
+                                    //console.log(wname)
+                                    newtm = tms_for_plate[wname]["tm"]
+                                    mytms.push(newtm)
+                                }
+                            }
+
+                            //console.log(wname)
+                        })
+                    } else {
+                        //Rows. This is a letter.
+                        Object.keys(tms_for_plate).forEach((well) => {
+                            wname = well
+                            if (wname.substring(0, 1) != "d") {
+
+                                if (wname.substring(0, 1) == r[1]) {
+                                    //console.log(wname)
+                                    newtm = tms_for_plate[wname]["tm"]
+                                    mytms.push(newtm)
+                                }
+                            }
+
+                            //console.log(wname)
+                        })
+                    }
+                }
+
+            ) */
+            //console.log(mytms, getMean(mytms),getStandardDeviation(mytms))
+            if (mytms.length != 0) {
+                ref_average_tm = getMean(mytms)
+                ref_stddev_tm = getStandardDeviation(mytms)
+            }
+            if (mytms.length == 0) {
+                ref_average_tm = 0
+                ref_stddev_tm = 0
+            }
+            if (manual_ref_tm != 0) {
+                ref_average_tm = parseFloat(manual_ref_tm)
+                ref_stddev_tm = 0
+            }
+            //console.log("··",ref_average_tm)
+            // Now update span containing this data.
+            $('#tm-span').html(ref_average_tm.toFixed(2) + " +/- " + ref_stddev_tm.toFixed(2))
+
+            if (manual_ref_tm != 0) {
+            $('#tm-span').html(ref_average_tm.toFixed(2) + " (Manual)")
+            }
+            //console.log(wellname_to_coords("B17"))
+
+            //Now that we have updated the ref_average_tm, check all wells and assign tm as the closest tm (from allpeaks) to ref_tm.
+            Object.keys(tms_for_plate).forEach((well) => {
+                            wname = well
+                            tm=tms_for_plate[wname]["tm"]
+                            all_peaks=tms_for_plate[wname]["allpeaks"]
+                                if (typeof all_peaks != 'undefined') {
+                                    if (all_peaks.length>1)
+                                        {
+                                            tms_for_plate[wname]["tm"]=closest_val(all_peaks,ref_average_tm)
+                                        }
+                                }
+                                
+                        })
+
+        }
+        function closest_val(myarray,goal)
+        {
+        
+        var closest = myarray.reduce(function(prev, curr) {
+        return (Math.abs(curr - goal) < Math.abs(prev - goal) ? curr : prev);
+        });
+        return closest
+        }
+
+        function wellname_to_coords(wellname) {
+            //This is a letter
+            r = wellname.substring(0, 1)
+            r2 = r.charCodeAt(0) - 64
+            c = wellname.substring(1)
+            return [r2, parseInt(c, 10)]
+
+        }
+
+        function toggleNorm() {
+
+
+            /*
+            for (i = 0; i < data1.length; i++) {
+                    data1[i]['y'] = (data1[i]['y']-minv1) /(maxv1-minv1);
+                }
+                for (i = 0; i < data2.length; i++) {
+                    data2[i]['y'] = (data2[i]['y']-minv2) / (maxv2-minv2);
+                }
+                for (i = 0; i < data3.length; i++) {
+                    data3[i]['y'] = (data3[i]['y']-minv3)/ (maxv3-minv3);
+            */
+
+
+            if ((document.getElementById('normalizeButton').checked)) {
+                myChart1.data.datasets.forEach((ds) => {
+                    maxv = ds.maxv;
+                    minv = ds.minv;
+                    data = ds.data;
+                    //console.log(maxv)
+                    for (i = 0; i < ds.data.length; i++) {
+                        //console.log(ds.data[i]['y'])
+                        //data1[i]['y'] = (data1[i]['y']-minv1) /(maxv1-minv1)
+                        ds.data[i]['y'] = (ds.data[i]['y'] - minv) / (maxv - minv);
+                    }
+                })
+                myChart2.data.datasets.forEach((ds) => {
+                    maxv = ds.maxv;
+                    minv = ds.minv;
+                    data = ds.data;
+                    //console.log(maxv)
+                    for (i = 0; i < ds.data.length; i++) {
+                        //console.log(ds.data[i]['y'])
+                        ds.data[i]['y'] = (ds.data[i]['y'] - minv) / (maxv - minv);
+                    }
+                })
+                myChart2.options.scales.y.suggestedMax = 1.1
+                myChart1.options.scales.y.suggestedMax = 1.1
+
+
+            } else {
+                myChart1.data.datasets.forEach((ds) => {
+                    maxv = ds.maxv;
+                    minv = ds.minv;
+                    data = ds.data;
+                    //console.log(maxv)
+                    for (i = 0; i < ds.data.length; i++) {
+                        //console.log(ds.data[i]['y'])
+                        ds.data[i]['y'] = (ds.data[i]['y'] * (maxv - minv)) + minv;
+                        //ds.data[i]['y'] = ds.data[i]['y'] * Math.abs(maxv);
+                    }
+                })
+                myChart2.data.datasets.forEach((ds) => {
+                    maxv = ds.maxv;
+                    minv = ds.minv;
+                    data = ds.data;
+                    //console.log(maxv)
+                    for (i = 0; i < ds.data.length; i++) {
+                        //console.log(ds.data[i]['y'])
+                        ds.data[i]['y'] = (ds.data[i]['y'] * (maxv - minv)) + minv;
+                        //ds.data[i]['y'] = ds.data[i]['y'] * Math.abs(maxv);
+                    }
+                })
+                myChart2.options.scales.y.suggestedMax = 0
+                myChart1.options.scales.y.suggestedMax = 0
+            }
+
+            myChart1.update();
+            myChart2.update();
+        }
+
+        function toggleShowrefs() {
+            if (!(document.getElementById('showrefsButton').checked)) {
+                showrefs=false
+            }
+            else
+            {
+                showrefs=true
+            }
+            add_well(filename)
+        }
+
+        function toggleZoom() {
+            if (!(document.getElementById('zoomButton').checked)) {
+                //disable zoom
+                myChart1.options.scales.x.min = 20
+                myChart1.options.scales.x.max = 100
+                myChart2.options.scales.x.min = 20
+                myChart2.options.scales.x.max = 100
+
+            } else {
+                //enable zoom
+                myChart1.options.scales.x.min = 40
+                myChart1.options.scales.x.max = 70
+                myChart2.options.scales.x.min = 40
+                myChart2.options.scales.x.max = 70
+
+                if (ref_average_tm > 0)
+                    {
+                        myChart1.options.scales.x.min = ref_average_tm - (zoom_window/2)
+                        myChart1.options.scales.x.max = ref_average_tm + (zoom_window/2)
+                        myChart2.options.scales.x.min = ref_average_tm - (zoom_window/2)
+                        myChart2.options.scales.x.max = ref_average_tm + (zoom_window/2)
+
+                    }
+
+            }
+            myChart1.update()
+            myChart2.update()
+        }
+
+        function random_rgb() {
+            var o = Math.round,
+                r = Math.random,
+                s = 200; //200: Darker than 255
+            return 'rgb(' + o(r() * s) + ',' + o(r() * s) + ',' + o(r() * s) + ')';
+        }
+
+        function remove_all_highlights() {
+            //Remove all wells from charts
+            //Clean all boxes from plate.
+            $('#welltable tbody tr td').each(function (i) {
+                //console.log($(this))
+                //$(cell).html(tickchar)
+                $(this).removeClass("td-highlight")
+            })
+
+
+        }
+
+        function remove_all_wells(removetm = true) {
+            //Remove all wells from charts
+            wells_in_use = []
+
+            myChart1.data.datasets = []
+
+            myChart1.update()
+
+            //Do not remove Tm if removetm=false
+            if (removetm == false) {
+                myChart2.data.datasets = myChart2.data.datasets.filter(
+                    function (d) {
+                        if (d.label == "Tm") {
+                            return true
+                        }
+                        return false
+                    }
+                )
+                //console.log(myChart2.data.datasets)
+            } else {
+                myChart2.data.datasets = []
+            }
+            myChart2.update()
+
+            //Clean all boxes from plate.
+            $('#welltable tbody tr td').each(function (i) {
+                //console.log($(this))
+                $(this).removeClass("td-sel")
+            })
+
+            refresh_wells_in_use()
+        }
+
+        function remove_well(filename, well) {
+            n = filename + "/" + well
+            wells_in_use = wells_in_use.filter(function (obj) {
+                return (obj != n)
+            })
+
+
+            myChart1.data.datasets = myChart1.data.datasets.filter(function (obj) {
+                //console.log(obj.filenamewell)
+                return (obj.filenamewell != filename + "&" + well)
+            })
+            myChart1.update()
+
+            myChart2.data.datasets = myChart2.data.datasets.filter(function (obj) {
+                //console.log(obj.filenamewell)
+                return (obj.filenamewell != filename + "&" + well)
+            })
+            myChart2.update()
+            refresh_wells_in_use()
+
+        }
+
+        function refresh_wells_in_use() {
+            //Updates p "wellsinuse" with all valies in array wells_in_use
+            $("#wellsinuse").text("")
+            wells_in_use.forEach(function (a) {
+                $("#wellsinuse").html($("#wellsinuse").html() + "<br>" + a)
+            })
+        }
+
+        function get_y_value_for_an_x_from_data(mydata,myx)
+        {
+        dist=10000
+        value=0
+            mydata.forEach(function (a){
+                
+                x=a['x']
+                y=a['y']
+                //console.log(x,y,a)
+                mydist=Math.abs(x-myx)
+                if (mydist<dist)
+                    {
+                        dist=mydist
+                        value=y
+                    }
+            })
+        //console.log(dist,value)
+        return value
+        }
+
+        function add_well(filename, well="") {
+            
+            
+            if (well!="")
+            {
+            d = get_well_data(filename, well)
+            wells_in_use.push(filename + "/" + well)
+            colors = ['rgb(255, 99, 132)', 'rgb(105, 80, 32)', 'rgb(255, 99, 255)', 'rgb(60, 155, 132)']
+
+            //Check closest tm and modify it:
+            all_peaks=d[well]["allpeaks"]
+                                if (typeof all_peaks != 'undefined') {
+                                    if (all_peaks.length>1)
+                                        {
+                                            d[well]["tm"]=closest_val(all_peaks,ref_average_tm)
+                                        }
+                                }
+
+            c = random_rgb()
+            //If it is reference, then color is lightgrey.
+            if (get_reference_well_list().includes(well)) {
+                c = reference_color
+            }
+
+
+
+            //Temps
+            data1 = d[well]['data']
+            //Derivative
+            data2 = d['d' + well]['data']
+            //derivative tm bar
+            data3 = [{
+                'x': d[well]['tm'],
+                //'y': d['d' + well]["max"],
+                'y': get_y_value_for_an_x_from_data(d['d' + well]["data"],d[well]['tm'])
+            }]
+
+            maxv1 = d[well]["max"]
+            maxv2 = d['d' + well]["max"]
+            maxv3 = maxv2
+
+
+            minv1 = d[well]["min"]
+            minv2 = d['d' + well]["min"]
+            minv3 = minv2
+
+            //If normalize is on:
+            if ((document.getElementById('normalizeButton').checked)) {
+                for (i = 0; i < data1.length; i++) {
+                    data1[i]['y'] = (data1[i]['y'] - minv1) / (maxv1 - minv1);
+                }
+                for (i = 0; i < data2.length; i++) {
+                    data2[i]['y'] = (data2[i]['y'] - minv2) / (maxv2 - minv2);
+                }
+                for (i = 0; i < data3.length; i++) {
+                    data3[i]['y'] = (data3[i]['y'] - minv3) / (maxv3 - minv3);
+                    //data3[i]['y'] = data3[i]['y'] / maxv3;
+                }
+
+            }
+
+
+            dataset1 = {
+                datasets: [{
+                    label: well + " Tm:" + d[well]["tm"],
+                    filename: filename,
+                    well: well,
+                    maxv: d[well]["max"],
+                    minv: d[well]["min"],
+                    filenamewell: filename + "&" + well,
+                    data: data1,
+                    borderColor: c,
+                    borderWidth: 1,
+                }]
+            }
+            dataset2 = {
+                datasets: [{
+                        label: well,
+                        filename: filename,
+                        well: well,
+                        data: data2,
+                        filenamewell: filename + "&" + well,
+                        maxv: d['d' + well]["max"],
+                        minv: d['d' + well]["min"],
+                        borderColor: c,
+                        borderWidth: 1,
+                    },
+                    {
+                        label: well + "S",
+                        filename: filename,
+                        well: well,
+                        maxv: d['d' + well]["max"],
+                        minv: d['d' + well]["min"],
+                        filenamewell: filename + "&" + well,
+                        data: data3,
+                        borderColor: c,
+                        borderWidth: 1,
+                        barThickness: 1,
+                        type: 'bar',
+
+                    }
+
+                ]
+            }
+            //If we have references, add a third dataset with Tm, dashed.
+
+
+            myChart1.data.datasets.push(dataset1['datasets'][0])
+            myChart2.data.datasets.push(dataset2['datasets'][0])
+            if (ref_average_tm>0)
+            {
+                myChart2.data.datasets.push(dataset2['datasets'][1])
+            }
+            
+            
+            }
+            //console.log(ref_average_tm)
+            //Now add all reference wells in very light grey.
+            //First, reove all REFS
+            
+            myChart2.data.datasets = myChart2.data.datasets.filter(
+                    function (d) {
+                        if (d.label.split(" ")[0] == "REF") {
+                            return false
+                        }
+                        return true
+                    }
+                )
+                myChart1.data.datasets = myChart1.data.datasets.filter(
+                    function (d) {
+                        if (d.label.split(" ")[0] == "REF") {
+                            return false
+                        }
+                        return true
+                    }
+                )
+
+            if (showrefs)
+            {
+            wells=get_reference_well_list()
+            //ignore bad references:
+            d = get_well_data(filename)
+            wells.forEach((i) => {
+                //console.log(i)
+                c = reference_color_light
+                
+
+
+
+
+                datar1 = d[i]['data']
+                datar2= d['d'+i]['data']
+                if (datar1.length==0)
+                    {return}
+                minv1=d[i]["min"]
+                maxv1=d[i]["max"]
+                minv2=d['d'+i]["min"]
+                maxv2=d['d'+i]["max"]
+            //If normalize is on:
+            if ((document.getElementById('normalizeButton').checked)) {
+                for (j = 0; j < datar1.length; j++) {
+                    datar1[j]['y'] = (datar1[j]['y'] - minv1) / (maxv1 - minv1);
+                }
+                for (j = 0; j < datar2.length; j++) {
+                    datar2[j]['y'] = (datar2[j]['y'] - minv2) / (maxv2 - minv2);
+                }
+            }
+            //console.log(i)
+            //console.log(datar1)
+                d1={
+                    label: "REF "+i,//well + " Tm:" + d[i]["tm"],
+                    filename: filename,
+                    well: i,
+                    maxv: d[i]["max"],
+                    minv: d[i]["min"],
+                    filenamewell: filename + "&" + i,
+                    data: datar1,
+                    borderColor: c,
+                    borderWidth: 0.5,
+                    
+                }
+                
+                d2={
+                    label: "REF "+i,//well + " Tm:" + d['d'+i]["tm"],
+                    filename: filename,
+                    well: i,
+                    maxv: d['d'+i]["max"],
+                    minv: d['d'+i]["min"],
+                    filenamewell: filename + "&" + i,
+                    data: datar2,
+                    borderColor: c,
+                    borderWidth: 0.5,
+                    
+                }
+                good_r=true
+                if (i in servercategories)
+                        {
+                            if (servercategories[i].includes("Warning"))
+                                {good_r=false}
+                        }
+                //console.log(i, good_r)
+                if (good_r)
+                {
+                myChart1.data.datasets.push(d1)
+                myChart2.data.datasets.push(d2)
+                }
+
+                })
+            //alert(wells)
+            }
+            else
+            {
+
+
+            }
+
+            //console.log(dataset2['datasets'][1])
+            //console.log(dataset2['datasets'][0])
+            myChart1.update();
+            myChart2.update();
+            refresh_wells_in_use()
+            //console.log(wells_in_use)
+
+        }
+
+
+        function get_well_data(myfilename, well = "") {
+            var request = new XMLHttpRequest();
+
+            //filename="EUOS/EUOS P30-12 231120.txt"
+            request.open('GET', '/well/' + myfilename + '&' + well, false); // `false` makes the request synchronous
+            request.send(null);
+
+            if (request.status === 200) {
+                console.log("ok");
+                //console.log(request.response)
+                return JSON.parse(request.response)
+            }
+
+        }
+
+        function get_templates(){
+            var request = new XMLHttpRequest();
+
+
+            request.open('GET', '/templatelist/', false); // `false` makes the request synchronous
+            request.send(null);
+
+            if (request.status === 200) {
+                console.log("ok");
+                //console.log(request.response)
+                return JSON.parse(request.response)
+            }
+
+        }
+        function get_template_for_filename(myfilename){
+            var request = new XMLHttpRequest();
+            request.open('GET', '/get_template/' + myfilename, false); // `false` makes the request synchronous
+            request.send(null);
+
+            if (request.status === 200) {
+                console.log("ok");
+                //console.log(request.response)
+                return request.response
+            }
+
+        }
+
+        function send_template_for_filename(myfilename,template){
+            var request = new XMLHttpRequest();
+
+
+            request.open('GET', '/send_template/' + myfilename+"&"+template, false); // `false` makes the request synchronous
+            request.send(null);
+
+            if (request.status === 200) {
+                console.log("ok");
+                //console.log(request.response)
+                return request.response
+            }
+
+        }
+        function get_filenams() {
+            var request = new XMLHttpRequest();
+
+
+            request.open('GET', '/filelistn/', false); // `false` makes the request synchronous
+            request.send(null);
+
+            if (request.status === 200) {
+                console.log("ok");
+                //console.log(request.response)
+                return JSON.parse(request.response)
+            }
+
+        }
+
+
+
+
+        function dt_warning_click(a) {
+            //console.log("dt_warn_click")
+            well=$(a.target).parent().parent().children()[0].textContent
+            warn_checked=a.target.checked
+            //console.log((a.target))
+            //console.log(well,warn_checked)
+            toggle_flag_for_well(well, "Warning")
+            //Changing warning should unvalidate row and send info to server.
+            //If it was already unvalidated do not contact server
+            
+            //If just checked, autoclick on first row of the table
+            if (warn_checked)
+                {
+                    $('#datatable tbody').children('tr:first').children('td:first').click()
+                    //datatable_
+                }
+        }
+
+        function dt_eff_click(a) {
+            //console.log("dt_eff_click")
+            eff_value=a.target.value
+            well=$(a.target).parent().parent().children()[0].textContent
+            //Check if it was highlighted:
+            row=$(a.target).parent().parent()
+            num_row=row.index();
+            //console.log(num_row)
+            has_high=(row.hasClass("td-highlight"))
+            //console.log(well,eff_value)
+            toggle_flag_for_well(well, eff_value)
+            if (has_high & eff_value!="Neutral"){$('#datatable tbody').children().eq(num_row).addClass("td-highlight")}
+            //Changing effect should unvalidate row and send info to server.
+            //If it was already unvalidated do not contact server
+        }
+
+        function dt_validate_click(a) {
+            //console.log("dt_valid_click")
+            well=$(a.target).parent().parent().children()[0].textContent
+            valid_checked=a.target.checked
+            //console.log((a.target))
+            //console.log(well,warn_checked)
+            toggle_flag_for_well(well, "Validated")
+            //If just checked, autoclick on first row of the table
+            if (valid_checked)
+                {
+                    $('#datatable tbody').children('tr:first').children('td:first').click()
+                    //datatable_
+                }
+
+        }
+
+        function datatable_click(a)
+
+        {
+            clicked = a.target
+            //console.log($(clicked).parent().hasClass("td-highlight"))
+            //Clicked on input element. return
+            if (clicked.nodeName != "TD") {
+                return
+            }
+            //Clicked on active row. return
+            if($(clicked).parent().hasClass("td-highlight"))
+                {
+                    return
+                }
+            //Remove highlights
+            $('#datatable tbody tr').each(function (i) {
+                //console.log($(this))
+                //$(cell).html(tickchar)
+                $(this).removeClass("td-highlight")
+            })
+            //Add highlight
+            $(clicked.parentElement).addClass('td-highlight')
+            ycoord = clicked.parentElement.rowIndex;
+            xcoord = clicked.cellIndex;
+            dat = welldatatable.row(clicked.parentElement).data()['well']
+
+            remove_all_wells(false)
+            add_well(filename, dat)
+            //Add td-sel class to well.
+            coords = wellname_to_coords(dat)
+            cell = $('#welltable')[0].rows[coords[0]].cells[coords[1]]
+            $(cell).addClass("td-sel")
+
+
+            /*
+                        $('#welltable tbody tr td').each(function (i) {
+                            //console.log($(this))
+                            $(this).removeClass("td-sel")
+                        })*/
+
+        }
+
+        function load_filenames_bar(){
+            $("#plateslist").empty()
+        filenams = get_filenams()
+        //var plateslist=document.getElementById("plateslist")
+
+        //console.log(filenams)
+        
+        for (const folder in filenams) {
+            //console.log(folder)
+
+            //9655 is right pointing triangle, 9661 is down pointing
+            $("#plateslist").append('<li class="list-group-item" id="f' + folder + '" value="' + folder + '"><span class="expander-button ">&#9655;</span>&nbsp;' +
+                '<span class="folnam">' + folder +'</span>'+ '<ul class="list-group not-expanded" id="ff' + folder + '">' + '</ul></li>')
+            
+            for (const file in filenams[folder]) {
+                template=get_template_for_filename(folder + "/" + filenams[folder][file])  //"None" //Get template from server
+                //console.log(template)
+                if (filename == "") {
+                    //Set filename to first one.
+                    filename = folder + "/" + filenams[folder][file]
+                }
+                $("#ff" + folder).append('<li class="list-group-item" value="' + folder + "/" + filenams[folder][file] +
+                    '">' + '<input type="checkbox" value="' + folder + "/" + filenams[folder][file] + '"/>' +
+                    filenams[folder][file]+
+                    '<span class="badge rounded-pill bg-info dropdown-toggle" data-toggle="dropdown"aria-haspopup="true" aria-expanded="false">'+template +'</span>' + 
+                    '</li>')
+                //console.log(filenams[folder][file])
+            }
+        }
+
+        //Attach on click to all expander-button instances.
+        $('#plateslist .expander-button').bind('click', function (e) {
+            //Toggle expanded and not-expanded to children list-group.
+            console.log("CL")
+            console.log($(this))
+            a=$(this).parent().children(".list-group")
+            if (a.hasClass("expanded"))
+                {
+                    a.removeClass("expanded")
+                    a.addClass("not-expanded")
+                    $(this).html("&#9655;")
+                }
+                else
+                {
+                    a.addClass("expanded")
+                    a.removeClass("not-expanded")
+                    $(this).html("&#9661;")
+                }
+            //If child is expanded, then this contains &#9661; . If not, &#9655;
+        })
+
+
+        //filename is set to first one.
+        //Now, set eveything for that filename:
+
+
+        $("#filenamep").text(filename)
+        $('#plateslist li ul li').each(function (i) {
+            //console.log($(this))
+            if ($(this).attr("value") == filename) {
+                $(this).addClass("active")
+            }
+
+        });
+
+        $('#plateslist li ul li .badge').bind('click', function (e) {
+                bfinam=$(this).parent().children("input").attr("value")
+                active_template_choose=bfinam
+                //console.log("badgeclick",bfinam)
+
+                //Build #template-dropdown
+                //<div id="template-dropdown" class="dropdown-menu scrollable-dd" aria-labelledby="dLabel">
+                //<a class="dropdown-item" href="#">None</a>
+                //</div>
+
+                //First, remove everything from #template-dropdown
+                $("#template-dropdown").empty()
+                $("#template-dropdown").append('<a class="dropdown-item" href="#">'+'None'+'</a>')
+                //Now, get templatelist
+                templatelist=get_templates()
+                templatelist.forEach((i) => {
+                    $("#template-dropdown").append('<a class="dropdown-item" href="#">'+i+'</a>')
+                
+                })
+                $("#template-dropdown a").bind('click', function (e) {
+                    bfinam=active_template_choose
+                    templ=$(this).text()
+                    //console.log(bfinam,templ)
+                    $("#template-dropdown").removeClass("show")
+                    $("#template-dropdown").hide()
+                    send_template_for_filename(bfinam,templ)
+                    load_filenames_bar()
+                })
+                //console.log(templatelist)
+                var top = e.pageY -30;
+                var left = e.pageX + 10;
+                if ($("#template-dropdown").hasClass("show"))
+                {
+                    $("#template-dropdown").removeClass("show")
+                    $("#template-dropdown").hide()
+                }
+                else
+                {
+                $("#template-dropdown").css({
+                            display: "block",
+                            top: top,
+                            left: left
+                        }).addClass("show");
+                }
+
+            })
+
+            $('#plateslist li ul li').bind('click', function (e) {
+                //When clciking on platelist, clear all graphs and remove all green boxes from plate.
+                document.body.style.cursor='wait';
+                a = $(this)
+                b = this
+                c = e.target
+                //console.log(c.nodeName)
+                if (c.nodeName != "LI") {
+                    return
+                }
+                remove_all_wells()
+
+                //Then, remove all "active " classes from list.
+
+
+
+                $('#plateslist li ul li').each(function (i) {
+                    //console.log($(this))
+                    $(this).removeClass("active")
+                });
+                //Then add active class to clicked file
+                filename = $(this).attr('value')
+                $(this).addClass("active")
+                //console.log( $(this).attr('value'))
+                //and show active filename in 'p' filenamep
+                $("#filenamep").text(filename)
+                //console.log()
+                
+                //console.log()
+                
+                if (filename !="")
+                {
+                console.log("----")
+                load_plate()
+                }
+                else
+                {
+                    console.log("NO DATA")
+                    $("#filenamep").text("Please, copy some data files to data folder")
+                }
+            })
+        }
+
+        function noempty_norefs(title,data){
+            if (title["text"]=="")
+                {return false}
+            if (title["text"].split(" ")[0] == "REF")
+            
+                {return false}
+             
+            return true
+            //console.log(title)
+            //return true
+        }
+
+        function plot_data(canvas_id, data) {
+
+
+            data2 = data;
+
+
+
+
+
+            myChart = new Chart(
+                document.getElementById(canvas_id),
+                config
+            );
+
+        }
+    </script>
+
+    <script src="js/bootstrap.bundle.min.js"></script>
+    <script>
+        //Fill sidebar with plates:
+        //<li class="list-group-item">PIPO</li>
+
+        /*             
+            <ul class="list-group" id="plateslist">
+                <li class="list-group-item">FOLDER A
+                    <ul class="list-group">
+                        <li class="list-group-item">FILE1</li>
+                        <li class="list-group-item">FILE2</li>
+                    </ul>
+                </li>
+                      
+
+            </ul> */
+
+        //INIT
+        var tms_for_plate = {}
+        var categories_for_plate = {}
+        var ref_average_tm = 0
+        var ref_stddev_tm = 0
+        var manual_ref_tm= 0
+        var zoom_window=30
+        var zoomed = false;
+        var wells_in_use = []
+        var reference_rc = [] //["Col 01"]
+        var bad_reference_wells= []
+        var tempthreshold = 1
+        var reference_color = 'rgb(100, 100, 100)'
+        var reference_color_light = 'rgb(200, 200, 200)'
+        var menuwell = ""
+        var fileformat=""
+        var active_template_choose=""
+        var tickchar = "&#x2713;"
+        var servercategories = {}
+        var datatabledata = {}
+        var showrefs=true
+        var kd_charts= {}
+        var datatablecolumns = [{
+            data: 'well'
+        }, {
+            data: 'tm'
+        }, {
+            data: 'dtm'
+        }, {
+            data: 'effect'
+        }, {
+            data: 'warning'
+        }, {
+            data: 'validated'
+        }]
+        var welldatatable = $('#datatable').DataTable(
+
+            {
+                data: datatabledata,
+                columns: datatablecolumns,
+                'paging': false,
+                'info': false,
+                'searching': false,
+                'scrollY': '250px',
+                'ordering':false,
+
+                
+                //'order': [
+                //    [2,'desc'],
+                //    [1,'asc']
+                //],
+                'columnDefs': [{
+                        'targets': 2, //dTM column
+                        "type": 'dtm'
+                    },
+
+                    {
+                        'targets': 4, // Warning  column
+                        'type':'checked',
+                        'render': function (data, type, full) {
+                            r = '<input class="dt-warn" type="checkbox" '
+                            if (data == "1") {
+                                r = r + "checked"
+                            }
+                            r = r + '>'
+                            return r
+                        },
+                        //'orderData':[4,2]
+                    },
+                    {
+                        'targets': 5, // validated column
+                        'type':'checked',
+                        'render': function (data, type, full) {
+                            r = '<input class="dt-valid" type="checkbox" '
+                            if (data == "1") {
+                                r = r + "checked"
+                            }
+                            r = r + '>'
+                            return r
+                        },
+                        //'orderData':[5,4]
+                    },
+                    {
+                        'targets': [3], // effect column
+                        'render': function (data, type, full) {
+                            r = '<select class="form-select form-select-sm dt-eff">'
+                            r = r + '<option value="Destabilizing"'
+                            //console.log(data)
+                            if (data == "Destabilizing") {
+                                r = r + " selected "
+                            }
+                            r = r + '>Destabilizing</option>'
+                            r = r + '<option value="Neutral"'
+                            if (data == "Neutral") {
+                                r = r + " selected "
+                            }
+                            r = r + '>Neutral</option>'
+
+                            r = r + '<option value="Stabilizing"'
+                            if (data == "Stabilizing") {
+                                r = r + " selected "
+                            }
+                            r = r + '>Stabilizing</option>'
+
+                            r = r + '<option value="Uncertain"'
+                            if (data == "Uncertain") {
+                                r = r + " selected "
+                            }
+                            r = r + '>Uncertain</option>'
+                            r = r + '</select>'
+                            return r
+                        }
+                    }
+
+                ],
+                rowCallback: function (row, data) {
+                    addClassToDatatableRow(row, data)
+                }
+            }
+        );
+        //Custom sort datatable by abs Tm
+        $.fn.dataTableExt.oSort["dtm-desc"] = function (x, y) {
+            //console.log(x,y)
+            if (Math.abs(x) > Math.abs(y)) {
+                return -1
+            } else {
+                return 1
+            }
+        }
+        $.fn.dataTableExt.oSort["dtm-asc"] = function (x, y) {
+        
+            if (Math.abs(x) > Math.abs(y)) {
+                return 1
+            } else {
+                return -1
+            }
+        }
+
+            $.fn.dataTableExt.oSort["checked-desc"] = function (x, y) {
+                
+                cx=$(x).attr("checked")
+                cy=$(y).attr("checked")
+                ccx=0
+                ccy=0
+                if (cx=="checked"){ccx=1}
+                if (cy=="checked"){ccy=1}
+                //console.log(x,y,cx,cy,ccx,ccy)
+            if (Math.abs(ccx) > Math.abs(ccy)) {
+                return -1
+            } else {
+                return 1
+            }
+        }
+        $.fn.dataTableExt.oSort["checked-asc"] = function (x, y) {
+            cx=$(x).attr("checked")
+                cy=$(y).attr("checked")
+                ccx=0
+                ccy=0
+                if (cx=="checked"){ccx=1}
+                if (cy=="checked"){ccy=1}
+                //console.log(x,y,cx,cy,ccx,ccy)
+            if (Math.abs(ccx) > Math.abs(ccy)) {
+                return -1
+            } else {
+                return 1
+            }
+        }
+
+        //datatable onclick
+
+        //console.log(welldatatable.order())
+        //Fill welltable with ticks.
+        $('#welltable tbody tr td').each(function (i) {
+            //console.log($(this))
+            $(this).html(tickchar)
+
+        })
+        filename = ""
+
+        //Load filenames bar.
+        load_filenames_bar()
+
+        if (filename!="")
+        {
+        load_plate()
+        }
+        if (filename=="")
+        {
+            $("#filenamep").text('NO DATA. Please copy some data to "data" folder')
+        }
+        //well="A6"
+        //d=get_well_data(filename,well)
+        colors = ['rgb(255, 99, 132)', 'rgb(105, 80, 32)', 'rgb(255, 99, 255)', 'rgb(60, 155, 132)']
+
+
+        const chartconfig = {
+            type: 'line',
+            data: {},
+            options: {
+                parsing:false,
+                animation:{duration:100,},
+                responsive: true,
+                elements: {
+                    point: {
+                        radius: 0
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels:{filter: noempty_norefs}
+                        
+                            },
+                    decimation:
+                        {
+                            enabled:true,
+                            algorithm:'lttb',
+                        },
+                        },
+                scales: {
+                    x: {
+                        type: 'linear'
+                    },
+                    y: {
+                        type: 'linear'
+                    }
+                }
+
+
+
+            }
+        };
+
+        const chartconfig2 = {
+            type: 'line',
+            data: {},
+            options: {
+                parsing:false,
+                animation:{duration:100,},
+                responsive: true,
+                elements: {
+                    point: {
+                        radius: 0
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    decimation:
+                        {
+                            enabled:true,
+                            algorithm:'lttb',
+                        },
+                },
+                scales: {
+                    x: {
+                        type: 'linear',
+
+                    },
+                    y: {
+                        type: 'linear',
+
+                    }
+                }
+
+
+
+            }
+        };
+
+        var myChart1 = new Chart(
+            document.getElementById('myChart'),
+            chartconfig
+        );
+        var myChart2 = new Chart(
+            document.getElementById('myChart2'),
+            chartconfig2
+        );
+
+        //Set Col01 as default reference.
+
+        reference_rc = ["Col 01"]
+        var cell = document.getElementById('welltable').rows[0].cells[1]
+        cell.classList.toggle("reference")
+        update_ref_list()
+    </script>
+
+</body>
+
+</html>
