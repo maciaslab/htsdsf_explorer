@@ -57,6 +57,10 @@
             display: none;
         }
 
+        .not-expanded {
+            display: none;
+        }
+
         #welltable tbody {
             border-right: 3px solid grey;
             z-index: 200;
@@ -89,6 +93,10 @@
             visibility: hidden;
         }
 
+        .folnam
+        {
+            font-weight: bold;
+        }
         .mini {
 
             transform: scale(0.8);
@@ -3374,9 +3382,9 @@
         for (const folder in filenams) {
             //console.log(folder)
 
-            
-            $("#plateslist").append('<li class="list-group-item" id="f' + folder + '" value="' + folder + '">' +
-                folder + '<ul class="list-group" id="ff' + folder + '">' + '</ul></li>')
+            //9655 is right pointing triangle, 9661 is down pointing
+            $("#plateslist").append('<li class="list-group-item" id="f' + folder + '" value="' + folder + '"><span class="expander-button ">&#9655;</span>&nbsp;' +
+                '<span class="folnam">' + folder +'</span>'+ '<ul class="list-group not-expanded" id="ff' + folder + '">' + '</ul></li>')
             
             for (const file in filenams[folder]) {
                 template=get_template_for_filename(folder + "/" + filenams[folder][file])  //"None" //Get template from server
@@ -3393,10 +3401,32 @@
                 //console.log(filenams[folder][file])
             }
         }
+
+        //Attach on click to all expander-button instances.
+        $('#plateslist .expander-button').bind('click', function (e) {
+            //Toggle expanded and not-expanded to children list-group.
+            console.log("CL")
+            console.log($(this))
+            a=$(this).parent().children(".list-group")
+            if (a.hasClass("expanded"))
+                {
+                    a.removeClass("expanded")
+                    a.addClass("not-expanded")
+                    $(this).html("&#9655;")
+                }
+                else
+                {
+                    a.addClass("expanded")
+                    a.removeClass("not-expanded")
+                    $(this).html("&#9661;")
+                }
+            //If child is expanded, then this contains &#9661; . If not, &#9655;
+        })
+
+
         //filename is set to first one.
         //Now, set eveything for that filename:
-        //console.log("**"+filename)
-        //filename="EUOS/EUOS P30-12 231120.txt"
+
 
         $("#filenamep").text(filename)
         $('#plateslist li ul li').each(function (i) {
