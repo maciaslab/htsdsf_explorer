@@ -865,7 +865,7 @@
                         data-bs-target="#manualtmModal">Manual ref. Tm</button><button type="button" class="inline btn btn-sm btn-primary noshow" id="btnsetrefs">Set wells as refs.</button></p> 
                 </div>
                 <div id="miniinstructions" class="small">
-                    <small>Click:Show well; SHIFT+Click: Multiselect well; ALT+Click:Set/Unset well as reference; Click on row/column headers: Set column/row as reference</small>
+                    <small>Click:Show well; SHIFT+Click: Multiselect well; SHIFT+CLICK row/column header: Multiselect row/column; ALT+Click:Set/Unset well as reference; Click on row/column headers: Set column/row as reference</small>
                 </div>
                 <p class="noshow"> References: <span id="referencelist"></span></p>
 
@@ -1077,6 +1077,69 @@
                 //Reference wells will skip wells labeled as bad.
                 //Reference will be averaged from all wells. (Tm and dev.)
                 if ((xcoord == 0) | (ycoord == 0)) {
+                    if (e.shiftKey)
+                        {
+                            //SHIFT:Add all cells in row/column to display
+                            //for each cell in row/column:
+                            cells_to_act=[]
+                            if (xcoord == 0) {
+                                // row
+                                for (ii=1;ii<=24;ii++)
+                                {
+                                    cells_to_act.push([ii,ycoord])
+                                }
+                                
+                            }
+                            else
+                            {
+                                //column
+                                for (ii=1;ii<=16;ii++)
+                                {
+                                    cells_to_act.push([xcoord,ii])
+                                }
+                            }
+                            cells_to_act.forEach(function (mycell){
+                            //console.log(mycell)
+                            xcoorda=mycell[0]
+                            ycoorda=mycell[1]
+                            
+                            
+                            
+                            var cell= table.rows[ycoorda].cells[xcoorda]
+                            wellstring = String.fromCharCode(64 + ycoorda) + xcoorda
+                            //console.log(wellstring,xcoorda,ycoorda,cell)
+                            //console.log(cell.classList)
+                            
+                            if (!(cell.classList.contains('td-sel')))
+                            {
+                                            
+                                            //console.log("ADDING", wellstring)
+                                            
+                                            add_well(filename, wellstring,false)
+                                            cell.classList.toggle("td-sel")
+                            }
+                            else
+                            {
+                                            //console.log("REMOVING", wellstring)
+                                            cell.classList.toggle("td-sel")
+                                            remove_well(filename, wellstring,false)
+                            }
+                            
+                            //console.log(wellstring,cell.classList)
+                            }
+                            
+                            )
+                            //Because add_well is called with updatechart=false, we need to update the charts manually
+                            
+                            myChart1.update();
+                            myChart2.update();
+                            
+                        }
+                    else
+                    {
+                        //console.log("NOSHIFT")
+                        //NO SHIFT: Add row/column to references
+                    
                     var cell = table.rows[ycoord].cells[xcoord]
                     cell.classList.toggle("reference")
                     rc_name = $(cell).text()
@@ -1095,10 +1158,16 @@
                         })
                     }
                     update_ref_list()
+                    }
+
+
+
+
                 }
 
                 //This is for non header rows and columns -> Show graph for clicked well.
                 if ((xcoord > 0) & (ycoord > 0)) {
+                    //console.log("OOO")
                     //Toggle border of cell  and enable/disable on graph.
                     var cell = table.rows[ycoord].cells[xcoord]
                     wellstring = String.fromCharCode(64 + ycoord) + xcoord
@@ -1417,7 +1486,7 @@
            
             kditems={}
             if (request.status === 200) {
-                console.log("ok");
+                //console.log("ok");
                 //console.log(request.response)
                 kditems=JSON.parse(request.response)
             }
@@ -1594,7 +1663,7 @@
                             {
                                 if ($(this).hasClass("td-well-disabled"))
                                     {
-                                        console.log(this)
+                                        //console.log(this)
                                         toggle_flag_for_well(w,"Warning")
                                         $(this).removeClass("td-well-disabled")
                                         $(this).addClass("td-well-enabled")
@@ -1742,7 +1811,7 @@
                 {
                     a=""
                     kdclass=""
-                    console.log("*"+kd.substr(0,2)+"*")
+                    //console.log("*"+kd.substr(0,2)+"*")
                     if (kd.substr(0,3)=="(!)")
                         {kdclass="redKdlabel"
                         kd=kd.substr(3)
@@ -1800,13 +1869,13 @@
             }
 
         function chartClicked (evt, activeElements) {
-        console.log(evt, activeElements)
+        //console.log(evt, activeElements)
         activeElements.forEach((element) =>
             {
                 el=element["element"]['$context']['raw']
                 well=el["well"]
                 mol=el["molecule"]
-                console.log(well)
+                //console.log(well)
                 if (typeof well !== 'undefined')
                     {
                         //Toglle warning for well, and refresh.
@@ -2981,15 +3050,15 @@
         return value
         }
 
-        function add_well(filename, well="") {
+        function add_well(filename, well="",updatechart=true) {
             
-            
+            //console.log("*",well)
             if (well!="")
             {
             d = get_well_data(filename, well)
             wells_in_use.push(filename + "/" + well)
             colors = ['rgb(255, 99, 132)', 'rgb(105, 80, 32)', 'rgb(255, 99, 255)', 'rgb(60, 155, 132)']
-            console.log(d)
+            //console.log(d)
             //Check closest tm and modify it:
             all_peaks=d[well]["allpeaks"]
                                 if (typeof all_peaks != 'undefined') {
@@ -3199,8 +3268,11 @@
 
             //console.log(dataset2['datasets'][1])
             //console.log(dataset2['datasets'][0])
+            if (updatechart)
+            {
             myChart1.update();
             myChart2.update();
+            }
             refresh_wells_in_use()
             //console.log(wells_in_use)
 
@@ -3229,16 +3301,16 @@
             //dor=get_well_data_orig(myfilename, well)
             //console.log("DOR",dor["A14"]["data"][0])
             //return(dor)
-            console.log("Getting well data "+well)
-            console.log(myfilename,"*", lastfilename)
+            //console.log("Getting well data "+well)
+            //console.log(myfilename,"*", lastfilename)
             if (myfilename==lastfilename)
                 {   
-                console.log("cached")
+                //console.log("cached")
                 j=JSON.parse(JSON.stringify(my_full_plate))
-                console.log(j["A14"]["data"][0])
+                //console.log(j["A14"]["data"][0])
                 return j
                 }
-            console.log("not cached")
+            //console.log("not cached")
             lastfilename=myfilename
             my_full_plate={}
             
@@ -3444,8 +3516,8 @@
         //Attach on click to all expander-button instances.
         $('#plateslist .expander-button').bind('click', function (e) {
             //Toggle expanded and not-expanded to children list-group.
-            console.log("CL")
-            console.log($(this))
+            //console.log("CL")
+            //console.log($(this))
             a=$(this).parent().children(".list-group")
             if (a.hasClass("expanded"))
                 {
@@ -3555,12 +3627,12 @@
                 
                 if (filename !="")
                 {
-                console.log("----")
+                //console.log("----")
                 load_plate()
                 }
                 else
                 {
-                    console.log("NO DATA")
+                    //console.log("NO DATA")
                     $("#filenamep").text("Please, copy some data files to data folder")
                 }
             })
