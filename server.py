@@ -16,6 +16,7 @@ import xlsxwriter
 import webbrowser
 from multiprocessing import Pool, freeze_support
 import warnings
+import math
 #from adjustText import adjust_text
 
 #NEW
@@ -34,6 +35,9 @@ cache_path="cache/"
 persistent_path="persistent/"
 plateinfo_path="plateinfo/"
 version="7"
+#decimation=False 
+decimation=True
+decim_maxpoints=150
 
 formats=["LightCycler","BioRad","QuantStudio 2","QuantStudio 1","Generic DSF"]
 
@@ -1082,10 +1086,10 @@ def readtxt(filename,rwell=""):
     #cachefilename=cache_path+"txt#"+filename.replace("/","##")+"#"+rwell
     
     if os.path.exists(cachefilename2):
-        #print("Cached file no-well found. Serving")
+        #print("Cached file found. Serving",filename,rwell)
         f_served = open(cachefilename2,'rb')
         a=json.loads(f_served.read())
-        return a
+        return decimate(a)
 
     if (Path(filename).suffix==".txt"):
         file = open(filename,'r')
@@ -1132,7 +1136,7 @@ def readtxt(filename,rwell=""):
     f_cached = open(cachefilename2,'w')
     f_cached.write(json.dumps(a))
     f_cached.close()
-    return a
+    return decimate(a)
 
 
 def remove_data(jsondata):
@@ -1425,9 +1429,42 @@ def derivate_and_metadata(jsondata):
                 jsondata[well]['allpeaks']=tm_array
                 warning=checkquality(jsondata[well]['data'],jsondata['d'+well]['data'])
                 jsondata[well]['warnings']=warning
+
+
+                
     return jsondata
 
+def decimate(jsondata):
 
+
+    #print(jsondata)
+    #Decimate data: Return a max of 100 points of the data in each well and dwell.
+    
+    if ( not decimation):
+        return jsondata
+
+    #print ("DECIM ON")
+    for well in jsondata:
+        #print (well)
+        
+        #print(jsondata[well])
+        if 'data' in jsondata[well]:
+            #print (len(jsondata[well]['data']))
+            numpoints=len(jsondata[well]['data'])
+            if (numpoints<=decim_maxpoints):
+                continue
+            point_every=math.floor(float(numpoints)/float(decim_maxpoints))
+            w=[]
+            count=0
+            for point in jsondata[well]['data']:
+                count=count+1
+                if (count % point_every==0):
+                    w.append(point)
+            #print(jsondata[well]['data'])
+            #print(w)
+            jsondata[well]['data']=w
+
+    return jsondata
 
 def readbiorad(filename,rwell=""):
 
@@ -2233,7 +2270,7 @@ if __name__ == "__main__":
             print("Please wait. Scanning files.")
             fl=get_filelist_for_cache()
             #print (fl)
-            with Pool(5) as p:
+            with Pool(1) as p:
                 p.map(do_background_cache,fl)
         
         print("PROGRAM STARTED. Open:")
