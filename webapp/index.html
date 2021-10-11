@@ -2475,6 +2475,7 @@
             update_ref_list()
             
             auto_categorize()
+            
             document.body.style.cursor='default';
 
 
@@ -2988,7 +2989,7 @@
             d = get_well_data(filename, well)
             wells_in_use.push(filename + "/" + well)
             colors = ['rgb(255, 99, 132)', 'rgb(105, 80, 32)', 'rgb(255, 99, 255)', 'rgb(60, 155, 132)']
-
+            console.log(d)
             //Check closest tm and modify it:
             all_peaks=d[well]["allpeaks"]
                                 if (typeof all_peaks != 'undefined') {
@@ -3205,18 +3206,56 @@
 
         }
 
+    function get_well_data_orig(myfilename, well = "") {
+    
+
+    var request = new XMLHttpRequest();
+
+    //filename="EUOS/EUOS P30-12 231120.txt"
+    request.open('GET', '/well/' + myfilename + '&' + well, false); // `false` makes the request synchronous
+    request.send(null);
+
+    if (request.status === 200) {
+        console.log("ok");
+        //console.log(request.response)
+        return JSON.parse(request.response)
+    
+    }
+
+}
 
         function get_well_data(myfilename, well = "") {
+            //well=""
+            //dor=get_well_data_orig(myfilename, well)
+            //console.log("DOR",dor["A14"]["data"][0])
+            //return(dor)
+            console.log("Getting well data "+well)
+            console.log(myfilename,"*", lastfilename)
+            if (myfilename==lastfilename)
+                {   
+                console.log("cached")
+                j=JSON.parse(JSON.stringify(my_full_plate))
+                console.log(j["A14"]["data"][0])
+                return j
+                }
+            console.log("not cached")
+            lastfilename=myfilename
+            my_full_plate={}
+            
+
             var request = new XMLHttpRequest();
 
             //filename="EUOS/EUOS P30-12 231120.txt"
+            //request.open('GET', '/well/' + myfilename+'&' , false);
             request.open('GET', '/well/' + myfilename + '&' + well, false); // `false` makes the request synchronous
             request.send(null);
 
             if (request.status === 200) {
                 console.log("ok");
                 //console.log(request.response)
-                return JSON.parse(request.response)
+                my_full_plate=JSON.parse(request.response)
+                return JSON.parse(JSON.stringify(my_full_plate))
+                  
             }
 
         }
@@ -3575,6 +3614,8 @@
 
         //INIT
         var tms_for_plate = {}
+        var my_full_plate= {}
+        var lastfilename=""
         var categories_for_plate = {}
         var ref_average_tm = 0
         var ref_stddev_tm = 0
