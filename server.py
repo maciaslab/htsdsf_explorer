@@ -1860,11 +1860,18 @@ def serve_templatelist():
         all_files = []
         for ext in extensions:
             all_files.extend(Path(plateinfo_path).rglob(ext))
+        #print(all_files)
         for filename in all_files:
                 #print(filename)
+                if (filename.parts[-1][0]=="."):
+                    continue
                 df = pandas.read_csv(filename, index_col=None, sep="\t",header=0)
+                #print(df)
+                #print("**__**__**__**__**__**")
+                df.columns=["platewell","eos","smiles","plate","well"]
                 templatesdf.append(df)
         templatesdf=pandas.concat(templatesdf, axis=0, ignore_index=True)
+        #print(templatesdf)
         templatesdf.columns=["platewell","eos","smiles","plate","well"]
         
         result=templatesdf["plate"].unique()
