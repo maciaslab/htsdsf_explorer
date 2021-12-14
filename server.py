@@ -726,7 +726,10 @@ def create_report(post_data):
             #print(filename)
             df = pandas.read_csv(filename, index_col=None, sep="\t",header=0)
             templatesdf.append(df)
+    
     templatesdf=pandas.concat(templatesdf, axis=0, ignore_index=True)
+    templatesdf=templatesdf.iloc[:,0:5]
+    print(templatesdf)
     templatesdf.columns=["platewell","eos","smiles","plate","well"]
     #Columns used: 1,2,3,4
     #Columns ignored: 0
