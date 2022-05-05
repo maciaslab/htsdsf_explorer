@@ -1136,7 +1136,16 @@ def readtxt(filename,rwell=""):
         a["format"]=formats[4]
         #return a
     
+    #print(a)
+
+    #for a2 in a:
+        #print(a2)
+        #print (a[a2]['data'])
+    #    for a3 in a[a2]['data']:
+    #        print (a3, type(a3['x']), type(a3['y'])  )
+            #for  (a[a2]['data'][a3],a[a2]['data'][a3])
     f_cached = open(cachefilename2,'w')
+    #print(json.dumps(a))
     f_cached.write(json.dumps(a))
     f_cached.close()
     return decimate(a)
@@ -1343,7 +1352,7 @@ def readquantstudio96(filename,rwell=""):
             tblock=spline[4:]
             for i in tblock:
                 t=float(i)
-                returndata[w]['data'].append({'x':t,'y':0})
+                returndata[w]['data'].append({'x':t,'y':float(0.0)})
                 dats_for_ders[w]['t'].append(t)
 
         if (phase==5):
@@ -1391,7 +1400,20 @@ def derivate_and_metadata(jsondata):
             
             if (len(fluors)>0):
                 dfluors=numpy.gradient(fluors)
-                dfluors=savgol_filter(dfluors,31,2)
+                #savgol filter window defaults at 31, but should depend on the number of points.
+                #get length of dfluors
+                l=len(dfluors)
+                #print("dfluors len:",l)
+                sfwindow=int(l/10)
+                #if sfwindow is not odd, add 1
+                if (sfwindow%2==0):
+                    sfwindow=sfwindow+1
+                #if sfwindow is less than 15, set to 15
+                if (sfwindow<15):
+                    sfwindow=15
+                
+                
+                dfluors=savgol_filter(dfluors,sfwindow,2)
                 
                 
                 dfluors_poly = resample_poly(dfluors, 100, 20)
